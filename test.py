@@ -24,6 +24,13 @@ import plotly.graph_objects as go
 from tkhtmlview import HTMLLabel
 import plotly.io as pio
 from PIL import Image, ImageTk
+import pygame
+from gtts import gTTS
+import tempfile
+import threading
+import time
+import io
+import re
 
 
 rcParams["font.sans-serif"] = ["SimHei"]  # 设置中文字体
@@ -175,12 +182,10 @@ def advanced_visualization(df, analysis):
 
 
 # ==== 分析函数增强 ====
-def comprehensive_analysis(df,anomalies):
+def comprehensive_analysis(df, anomalies):
     """增强分析逻辑"""
     analysis = {}
     hr = df["heart_rate"].values
-
-
 
     # 基础统计
     analysis.update(
@@ -195,18 +200,20 @@ def comprehensive_analysis(df,anomalies):
 
     # 基础指标扩展
     base_metrics = {
-        'heart_rate': '心率',
-        'heart_rate_diff': '心率变化率',
-        'ma_3': '移动平均'
+        "heart_rate": "心率",
+        "heart_rate_diff": "心率变化率",
+        "ma_3": "移动平均",
     }
-    
+
     for col, name in base_metrics.items():
-        analysis.update({
-            f'{name}平均值': df[col].mean(),
-            f'{name}标准差': df[col].std(),
-            f'{name}最大值': df[col].max(),
-            f'{name}最小值': df[col].min()
-        })
+        analysis.update(
+            {
+                f"{name}平均值": df[col].mean(),
+                f"{name}标准差": df[col].std(),
+                f"{name}最大值": df[col].max(),
+                f"{name}最小值": df[col].min(),
+            }
+        )
 
     # HRV时域指标
     rr_intervals = 60000 / hr  # 转换心率到RR间期（毫秒）
@@ -237,10 +244,10 @@ def comprehensive_analysis(df,anomalies):
     analysis["趋势斜率"] = trend_model.coef_[0]
 
     base_score = 85
-    score_deduction = min(len(anomalies)*0.5, 15)  # 使用传入的anomalies参数
-    if analysis['LF/HF'] > 3:
+    score_deduction = min(len(anomalies) * 0.5, 15)  # 使用传入的anomalies参数
+    if analysis["LF/HF"] > 3:
         score_deduction += 5
-    analysis['健康评分'] = max(60, base_score - score_deduction)
+    analysis["健康评分"] = max(60, base_score - score_deduction)
 
     return analysis
 
@@ -259,38 +266,38 @@ def anomaly_detection(df):
     return warnings
 
 
-# 四、AI建议模块
-def get_ai_advice(analysis, anomalies):
-    """优化输入特征"""
-    features = {
-        "stat": ["均值", "标准差", "最大值", "最小值", "极差", "SDNN", "RMSSD"],
-        "freq": ["LF/HF", "主要频率", "LF能量占比", "HF能量占比"],
-        "trend": ["趋势斜率"],
-    }
+# # 四、AI建议模块
+# def get_ai_advice(analysis, anomalies):
+#     """优化输入特征"""
+#     features = {
+#         "stat": ["均值", "标准差", "最大值", "最小值", "极差", "SDNN", "RMSSD"],
+#         "freq": ["LF/HF", "主要频率", "LF能量占比", "HF能量占比"],
+#         "trend": ["趋势斜率"],
+#     }
 
-    client = ZhipuAI(api_key="62aca7a83e7a40308d2f4f51516884bc.J91FkaxCor4k3sDk")
-    # 我自己弄的智谱清言的api，后期看看有别的更好的ai的话可以换，虽然是免费的但也别外传滥用
-    messages = [
-        {
-            "role": "system",
-            "content": """你是一位心脏健康专家，请根据以下特征分析,请注意，语言一定要通俗易懂，从多角度极其详尽的给出回答：
-                        1. 静息心率评估（正常范围60-100bpm）
-                        2. 压力水平（LF/HF＞3表示高压）
-                        3. HRV指标异常预警（SDNN＜50ms为异常）
-                        4. 给出个性化建议（包含运动饮食医疗卫生健康多方面）""",
-        },
-        {"role": "user", "content": f"{analysis}\n异常记录：{anomalies}"},
-    ]
+#     client = ZhipuAI(api_key="62aca7a83e7a40308d2f4f51516884bc.J91FkaxCor4k3sDk")
+#     # 我自己弄的智谱清言的api，后期看看有别的更好的ai的话可以换，虽然是免费的但也别外传滥用
+#     messages = [
+#         {
+#             "role": "system",
+#             "content": """你是一位心脏健康专家，请根据以下特征分析,请注意，语言一定要通俗易懂，从多角度尽量的详尽的给出回答并顺便解释专业名词的意思：
+#                         1. 静息心率评估（正常范围60-100bpm）
+#                         2. 压力水平（LF/HF＞3表示高压）
+#                         3. HRV指标异常预警（SDNN＜50ms为异常）
+#                         4. 给出个性化建议（包含运动饮食医疗卫生健康多方面）""",
+#         },
+#         {"role": "user", "content": f"{analysis}\n异常记录：{anomalies}"},
+#     ]
 
-    response = client.chat.completions.create(model="glm-4", messages=messages)
-    return response.choices[0].message.content
+#     response = client.chat.completions.create(model="glm-4", messages=messages)
+#     return response.choices[0].message.content
 
 
 # 修改后的 generate_report() 函数
 def generate_report(df, analysis, advice, anomalies):
     """生成增强版报告"""
 
-    target_columns = ['heart_rate', 'heart_rate_diff', 'ma_3']
+    target_columns = ["heart_rate", "heart_rate_diff", "ma_3"]
     describe_df = df[target_columns].describe()
 
     # 中文列名映射
@@ -298,7 +305,7 @@ def generate_report(df, analysis, advice, anomalies):
         "count": "数据量",
         "mean": "平均值",
         "std": "标准差",
-        "min": "最小值", 
+        "min": "最小值",
         "25%": "下四分位",
         "50%": "中位数",
         "75%": "上四分位",
@@ -307,25 +314,28 @@ def generate_report(df, analysis, advice, anomalies):
 
     # 生成多指标HTML表格
     stats_html = describe_df.rename(index=cn_index).T.to_html(
-        classes="table table-striped",
-        header=True
+        classes="table table-striped", header=True
     )
 
     # 新增趋势图
-    extended_trend_fig = px.line(df, x='timestamp', 
-                               y=['heart_rate', 'ma_3'],
-                               title='心率与移动平均趋势分析')
+    extended_trend_fig = px.line(
+        df, x="timestamp", y=["heart_rate", "ma_3"], title="心率与移动平均趋势分析"
+    )
     extended_trend_html = pio.to_html(extended_trend_fig, full_html=False)
 
     # 生成交互式图表
-    trend_fig = px.line(df, x='timestamp', y='heart_rate', 
-                       title='心率趋势分析',
-                       labels={'heart_rate': '心率 (bpm)'})
+    trend_fig = px.line(
+        df,
+        x="timestamp",
+        y="heart_rate",
+        title="心率趋势分析",
+        labels={"heart_rate": "心率 (bpm)"},
+    )
     trend_html = pio.to_html(trend_fig, full_html=False)
 
-    distribution_fig = px.histogram(df, x='heart_rate', 
-                                   nbins=30,
-                                   title='心率分布直方图')
+    distribution_fig = px.histogram(
+        df, x="heart_rate", nbins=30, title="心率分布直方图"
+    )
     distribution_html = pio.to_html(distribution_fig, full_html=False)
 
     # 创建报告目录
@@ -341,12 +351,11 @@ def generate_report(df, analysis, advice, anomalies):
         template = Template(f.read())
 
     # 修改点2：明确指定分析列
-    describe_df = df['heart_rate'].describe().to_frame()  # 转为DataFrame
-    
+    describe_df = df["heart_rate"].describe().to_frame()  # 转为DataFrame
+
     # 修改点3：索引重命名
     stats_html = describe_df.rename(index=cn_index).to_html(
-        classes="table table-striped",
-        header=False  # 隐藏列名
+        classes="table table-striped", header=False  # 隐藏列名
     )
     # 修正后的模板渲染
     rendered = template.render(
@@ -356,7 +365,7 @@ def generate_report(df, analysis, advice, anomalies):
         anomalies=anomalies,
         now=datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
         trend_chart=trend_html,
-        distribution_chart=distribution_html
+        distribution_chart=distribution_html,
     )
 
     with open(filepath, "w", encoding="utf-8") as f:
@@ -382,7 +391,7 @@ class HeartAnalysisApp:
         )
 
         self.root.title("心率分析系统 v2.0")
-        self.root.geometry("1320x700")
+        self.root.geometry("1500x700")
 
         self.raw_data = None
         self.processed_data = None
@@ -394,6 +403,15 @@ class HeartAnalysisApp:
 
         self.decomposition_img = None  # 新增：保存图片引用
         self.create_widgets()
+
+        self.speech_lock = threading.Lock()
+        self.is_speaking = False
+        # 初始化音频系统
+        pygame.mixer.init()
+        # # 新增音频存储路径
+        # self.audio_dir = "temp_audio"
+        # os.makedirs(self.audio_dir, exist_ok=True)  # 自动创建目录
+        self.current_request = None
 
     def create_widgets(self):
         # 工具栏
@@ -516,10 +534,6 @@ class HeartAnalysisApp:
 
         self.analysis_text.insert(tk.END, analysis_str)
 
-        # AI健康建议
-        self.advice_text.delete(1.0, tk.END)
-        ai_advice_with_newline = (self.ai_advice or "无AI建议") + "\n"  # 在AI建议后面添加换行符
-        self.advice_text.insert(tk.END, ai_advice_with_newline)  # 新增
     def build_page2(self, parent):
         """构建第二页"""
         img_container = ttk.Frame(parent, relief="groove", borderwidth=2)
@@ -541,92 +555,209 @@ class HeartAnalysisApp:
         self.fig_canvas = None  # 确保初始化为 None
 
     def build_page3(self, parent):
-        """构建第三页"""
-        advice_frame = ttk.LabelFrame(parent, text=" AI健康建议 ", padding=(10, 5))
-        advice_frame.pack(fill=tk.BOTH, expand=True, pady=5)
+        """构建第三页（优化版）"""
+        main_frame = ttk.Frame(parent)
+        main_frame.pack(fill=tk.BOTH, expand=True)
 
-        # 创建一个容器用于显示对话历史
-        chat_container = ttk.Frame(advice_frame)
-        chat_container.pack(fill=tk.BOTH, expand=True, padx=10, pady=10)
+        # 聊天展示区域
+        chat_container = ttk.Frame(main_frame)
+        chat_container.pack(fill=tk.BOTH, expand=True, padx=5, pady=5)
 
-        # AI建议显示框
-        self.advice_text = tk.Text(
-            chat_container, height=20, bg="#fff3cd", relief="flat"
+        # 创建滚动区域
+        self.scroll_frame = ttk.Frame(chat_container)
+        self.scroll_frame.pack(fill=tk.BOTH, expand=True)
+
+        # 创建滚动条
+        self.scrollbar = ttk.Scrollbar(self.scroll_frame, orient="vertical")
+        self.scrollbar.pack(side=tk.RIGHT, fill=tk.Y)
+
+        # 创建Canvas
+        self.chat_canvas = tk.Canvas(
+            self.scroll_frame,
+            bg="white",
+            highlightthickness=0,
+            yscrollcommand=self.scrollbar.set,
         )
-        self.advice_text.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
+        self.chat_canvas.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
+        self.scrollbar.config(command=self.chat_canvas.yview)
+
+        # 创建内部Frame
+        self.chat_frame = ttk.Frame(self.chat_canvas)
+        self.chat_canvas.create_window((0, 0), window=self.chat_frame, anchor="nw", tags="inner_frame")
+
+        # 绑定Canvas尺寸变化事件
+        self.chat_canvas.bind("<Configure>", self._on_canvas_configure)
+
+        # 绑定鼠标滚轮事件到整个区域
+        self.chat_canvas.bind_all("<MouseWheel>", self._on_mousewheel)
+
+        # 底部输入区域
+        input_frame = ttk.Frame(main_frame)
+        input_frame.pack(side=tk.BOTTOM, fill=tk.X, pady=5, padx=5)
 
         # 输入框和发送按钮
-        input_frame = ttk.Frame(advice_frame)
-        input_frame.pack(fill=tk.X, pady=5)
-
-        # 设置列权重，使得输入框可以扩展
-        input_frame.columnconfigure(0, weight=1)
-
-        self.user_input = ttk.Entry(input_frame, width=80)  # 初始宽度设置为80
-        self.user_input.grid(
-            row=0, column=0, sticky="ew"
-        )  # 使用grid布局，并设置sticky属性为"ew"
+        self.user_input = ttk.Entry(input_frame)
+        self.user_input.pack(side=tk.LEFT, fill=tk.X, expand=True, padx=5)
 
         send_button = ttk.Button(input_frame, text="发送", command=self.send_message)
-        send_button.grid(row=0, column=1, padx=5)  # 使用grid布局
+        send_button.pack(side=tk.RIGHT, padx=5)
 
-        # 初始化对话历史
-        self.chat_history = []
+        # 绑定回车键发送消息
+        self.user_input.bind("<Return>", lambda event: self.send_message())
 
-        # 添加提示信息
-        hint_label = ttk.Label(
-            advice_frame,
-            text="请输入您的问题或反馈，点击发送获取AI回复。",
-            font=("微软雅黑", 8),
-            foreground="gray",
-        )
-        hint_label.pack(pady=5)
+    def _on_canvas_configure(self, event):
+        """处理画布尺寸变化"""
+        # 更新内部框架宽度
+        self.chat_canvas.itemconfigure("inner_frame", width=event.width)
+
+        # 更新消息标签换行长度
+        for widget in self.chat_frame.winfo_children():
+            if isinstance(widget, ttk.Frame):
+                for child in widget.winfo_children():
+                    if isinstance(child, ttk.Label):
+                        child.config(wraplength=event.width - 20)  # 保留边距
+
+    def _on_mousewheel(self, event):
+        """处理鼠标滚轮事件（优化版）"""
+        if self.chat_canvas.winfo_height() > 0:
+            self.chat_canvas.yview_scroll(int(-1 * (event.delta / 120)), "units")
 
     def send_message(self):
-        """处理用户输入并获取AI回复"""
+        """处理用户输入并获取AI回复（优化版）"""
         user_message = self.user_input.get().strip()
         if not user_message:
-            return  # 如果输入为空，直接返回
+            return
 
-        # 更新状态标签为“处理中...”
+        # 更新状态标签为"处理中..."
         self.status_label.config(text="处理中...", foreground="blue")
         self.root.update()
 
-        # 将用户输入添加到对话历史
-        self.chat_history.append({"role": "user", "content": user_message})
-
-        # 更新显示框内容，添加用户输入标签
-        self.advice_text.insert(tk.END, f"\n用户: {user_message}\n", ("user"))
-        self.advice_text.tag_config("user", foreground="blue")
-
         try:
-            client = ZhipuAI(
-                api_key="62aca7a83e7a40308d2f4f51516884bc.J91FkaxCor4k3sDk"
+            # 显示用户消息（带时间戳）
+            user_frame = ttk.Frame(self.chat_frame)
+            user_frame.pack(anchor="w", pady=5, padx=5, fill=tk.X)
+
+            ttk.Label(user_frame, text="[用户] ", foreground="blue").pack(side=tk.LEFT)
+            user_label = ttk.Label(user_frame, text=user_message, wraplength=self.chat_canvas.winfo_width() - 20)
+            user_label.pack(side=tk.LEFT, fill=tk.X, expand=True)
+
+            # 发送请求
+            messages = self.chat_history + [{"role": "user", "content": user_message}]
+            ai_reply = self._call_ai_api(messages, model="glm-4-plus")
+
+            # 过滤Markdown符号和换行
+            clean_ai_reply = self._clean_text(ai_reply)
+
+            # 显示AI回复
+            ai_frame = ttk.Frame(self.chat_frame)
+            ai_frame.pack(anchor="w", pady=5, padx=5, fill=tk.X)
+
+            # 消息头部分
+            header_frame = ttk.Frame(ai_frame)
+            ttk.Label(header_frame, text="[AI] ", foreground="green").pack(side=tk.LEFT)
+
+            # 语音控制按钮
+            speech_btn = ttk.Button(header_frame, text="▶", width=3)
+            speech_btn.pack(side=tk.RIGHT, padx=5)
+            header_frame.pack(fill=tk.X)
+
+            # 消息正文部分（自适应宽度）
+            body_frame = ttk.Frame(ai_frame)
+            text_label = ttk.Label(
+                body_frame,
+                text=clean_ai_reply,
+                wraplength=self.chat_canvas.winfo_width() - 20,  # 动态宽度
+                background="#f0f8ff",
+                padding=10,  # 增加内边距
+                anchor="nw",
+                justify="left",
+                font=("微软雅黑", 10),  # 统一字体
             )
-            response = client.chat.completions.create(
-                model="glm-4",  # 使用GLM-4模型
-                messages=self.chat_history,
+            text_label.pack(side=tk.LEFT, fill=tk.X, expand=True)
+            body_frame.pack(fill=tk.X)
+
+            # 时间标签
+            send_time = datetime.now().strftime("%H:%M:%S")
+            ttk.Label(
+                ai_frame, text=send_time, font=("微软雅黑", 7), foreground="gray"
+            ).pack(anchor="e")
+
+            # 保持滚动到底部
+            self.chat_canvas.yview_moveto(1.0)
+
+            # 更新对话历史
+            self.chat_history.extend(
+                [
+                    {"role": "user", "content": user_message},
+                    {"role": "assistant", "content": ai_reply},
+                ]
             )
-            ai_reply = response.choices[0].message.content
 
-            # 将AI回复添加到对话历史
-            self.chat_history.append({"role": "assistant", "content": ai_reply})
-
-            # 更新显示框内容，添加AI回复标签
-            self.advice_text.insert(tk.END, f"AI: {ai_reply}\n\n", ("assistant"))
-            self.advice_text.tag_config("assistant", foreground="green")
-
-            self.advice_text.see(tk.END)  # 滚动到最新内容
-
-            # 清空输入框
-            self.user_input.delete(0, tk.END)
+            # 绑定语音按钮事件
+            speech_btn.config(
+                command=lambda t=clean_ai_reply, btn=speech_btn: self.toggle_speech(t, btn)
+            )
 
         except Exception as e:
-            self.show_error(f"AI回复失败: {str(e)}")
+            error_msg = f"请求失败：{str(e)}"
+            error_frame = ttk.Frame(self.chat_frame)
+            ttk.Label(error_frame, text=error_msg, foreground="red").pack()
+            error_frame.pack(anchor="w", pady=5)
 
         finally:
-            # 更新状态标签为“就绪”
+            # 恢复输入状态
+            self.user_input.delete(0, tk.END)
             self.status_label.config(text="就绪", foreground="green")
+            self.root.update()
+
+    def _clean_text(self, text):
+        """优化版文本清理"""
+        # 去除markdown特殊符号
+        text = re.sub(r'[*#\-`~_\[\](){}<>|=+]', '', text)
+        
+        # 合并连续空行（保留最多一个空行）
+        text = re.sub(r'\n{3,}', '\n\n', text)
+        
+        # 去除行首尾空白
+        text = re.sub(r'^\s+|\s+$', '', text, flags=re.MULTILINE)
+        
+        # 合并多余空格（保留单个空格）
+        text = re.sub(r'[ \t]{2,}', ' ', text)
+        
+        # 智能分段处理（中文句号分段）
+        text = re.sub(r'([。！？])\s*', r'\1\n', text)
+        
+        return text.strip()
+
+    # 新增公共方法（放在 HeartAnalysisApp 类中）
+    def _call_ai_api(self, messages, model="glm-4-plus"):
+        """统一的AI接口调用方法"""
+        client = ZhipuAI(api_key="62aca7a83e7a40308d2f4f51516884bc.J91FkaxCor4k3sDk")
+        try:
+            response = client.chat.completions.create(model=model, messages=messages)
+            return response.choices[0].message.content
+        except Exception as e:
+            print(f"API调用失败: {str(e)}")
+            return None
+
+    # 修改后的 get_ai_advice（移入类方法）
+    def get_ai_advice(self):
+        """获取AI建议"""
+        system_prompt = """你是一位心脏健康专家，请根据以下特征分析,请注意，语言一定要通俗易懂，从多角度尽量的详尽的给出回答并顺便解释专业名词的意思。返回结果不要出现“*”“-”“#”等符号，即不要出现加粗及标题文本：
+                        1. 静息心率评估（正常范围60-100bpm）
+                        2. 压力水平（LF/HF＞3表示高压）
+                        3. HRV指标异常预警（SDNN＜50ms为异常）
+                        4. 给出个性化建议（包含运动饮食医疗卫生健康多方面）"""
+
+        messages = [
+            {"role": "system", "content": system_prompt},
+            {
+                "role": "user",
+                "content": f"{self.analysis_results}\n异常记录：{self.anomalies}",
+            },
+        ]
+        raw_advice = self._call_ai_api(messages)
+        return self._clean_text(raw_advice)  # 增加二次清洗
 
     def load_data(self):
         if self.running:
@@ -677,16 +808,18 @@ class HeartAnalysisApp:
                 # 先执行异常检测
                 self.anomalies = anomaly_detection(self.processed_data)
                 # 将anomalies作为参数传入
-                self.analysis_results = comprehensive_analysis(self.processed_data, self.anomalies)
+                self.analysis_results = comprehensive_analysis(
+                    self.processed_data, self.anomalies
+                )
                 self.analysis_results["异常数量"] = len(self.anomalies)
-                self.ai_advice = get_ai_advice(self.analysis_results, self.anomalies)
+                self.ai_advice = self.get_ai_advice()
                 self.update_display()
 
                 # 将首次对话历史保存到 chat_history
                 self.chat_history = [
                     {
                         "role": "system",
-                        "content": """你是一位心脏健康专家，请根据以下特征分析,请注意，语言一定要通俗易懂，从多角度尽量的详尽的给出回答：
+                        "content": """你是一位心脏健康专家，请根据以下特征分析,请注意，语言一定要通俗易懂，从多角度尽量的详尽的给出回答并顺便解释专业名词的意思：
                         1. 静息心率评估（正常范围60-100bpm）
                         2. 压力水平（LF/HF＞3表示高压）
                         3. HRV指标异常预警（SDNN＜50ms为异常）
@@ -702,6 +835,31 @@ class HeartAnalysisApp:
                 fig = advanced_visualization(self.processed_data, self.analysis_results)
                 if fig:  # 检查图表是否有效
                     self.show_matplotlib_figure(fig)
+
+                if self.ai_advice:
+                    # 清空原有聊天记录
+                    for widget in self.chat_frame.winfo_children():
+                        widget.destroy()
+
+                    # 显示初始AI建议
+                    ai_frame = ttk.Frame(self.chat_frame)
+                    ttk.Label(ai_frame, text="[AI] ", foreground="green").pack(
+                        side=tk.LEFT
+                    )
+
+                    # 添加语音按钮
+                    speech_btn = ttk.Button(ai_frame, text="▶", width=3)
+                    speech_btn.config(
+                        command=lambda t=self.ai_advice: self.toggle_speech(
+                            t, speech_btn
+                        )
+                    )
+                    speech_btn.pack(side=tk.RIGHT, padx=5)
+
+                    ttk.Label(ai_frame, text=self.ai_advice, wraplength=600).pack(
+                        side=tk.LEFT
+                    )
+                    ai_frame.pack(anchor="w", pady=5)
 
             except Exception as e:
                 self.show_error(f"分析失败: {str(e)}")
@@ -736,6 +894,79 @@ class HeartAnalysisApp:
                     webbrowser.open(f"file://{report_path}")
             except Exception as e:
                 self.show_error(f"报告生成失败：{str(e)}")
+
+    def toggle_speech(self, text, button):
+        with self.speech_lock:
+            if self.is_speaking:
+                self._safe_stop()
+                button.config(text="▶")
+                self.is_speaking = False
+                self.current_request = None  # 清除当前请求
+                return
+
+            # 生成简化请求ID
+            self.current_request = str(id(text))
+            button.config(text="⏹")
+            self.is_speaking = True
+
+            threading.Thread(
+                target=self.start_speech,
+                args=(text, button, self.current_request),
+                daemon=True,
+            ).start()
+
+    def start_speech(self, text, button, request_id):
+        try:
+            # 强制重置音频系统
+            pygame.mixer.quit()
+            pygame.mixer.init(frequency=22050, size=-16, channels=2)  # 明确初始化参数
+
+            # 使用内存流保存音频（避免文件操作）
+            with io.BytesIO() as audio_stream:
+                tts = gTTS(text=text, lang="zh")
+                tts.write_to_fp(audio_stream)
+                audio_stream.seek(0)
+
+                # 检查请求是否已过期
+                if request_id != self.current_request:
+                    return
+
+                # 加载并播放音频
+                sound = pygame.mixer.Sound(audio_stream)
+                channel = sound.play()
+
+                # 实时状态检查循环
+                while channel.get_busy() and self.is_speaking:
+                    pygame.time.Clock().tick(10)
+                    # 双重验证请求有效性
+                    if request_id != self.current_request or not self.is_speaking:
+                        channel.stop()
+                        break
+
+        except Exception as e:
+            print(f"语音播放错误: {str(e)}")
+
+        finally:
+            with self.speech_lock:
+                # 仅更新当前请求的状态
+                if request_id == self.current_request:
+                    self.is_speaking = False
+                    # 使用after确保在主线程更新UI
+                    button.after(0, lambda: button.config(text="▶"))
+                # 强制释放音频资源
+                pygame.mixer.quit()
+
+    def _safe_stop(self):
+        """安全停止音频播放"""
+        try:
+            # 停止所有音频通道
+            if pygame.mixer.get_init():
+                pygame.mixer.music.stop()
+                for channel in pygame.mixer.get_init():
+                    channel.stop()
+                # pygame.mixer.quit()
+        except Exception as e:
+            print(f"停止播放时发生错误: {str(e)}")
 
     def show_error(self, message):
         error_window = tk.Toplevel(self.root)
