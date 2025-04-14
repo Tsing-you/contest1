@@ -1,3 +1,4 @@
+# 本项目的软件部分已上传至github，具体见https://github.com/Tsing-you/contest1
 import pandas as pd
 import matplotlib.pyplot as plt
 import seaborn as sns
@@ -38,11 +39,11 @@ import pyttsx3
 
 
 rcParams["font.sans-serif"] = ["SimHei"]  # 设置中文字体
-rcParams["axes.unicode_minus"] = False  # 解决负号显示问题
+rcParams["axes.unicode_minus"] = False  # 负号显示
 
 
 def load_health_data(file_path):
-    """添加文件读取进度显示"""
+    """文件读取进度显示"""
     try:
         # 显示文件大小
         file_size = os.path.getsize(file_path)
@@ -55,7 +56,7 @@ def load_health_data(file_path):
             chunksize=1000,
             header=None,  # 告诉 pandas 文件没有列头
             names=["timestamp", "heart_rate"],  # 手动指定列头
-            encoding="gbk"  # 使用 latin-1 编码读取文件
+            encoding="gbk"  # 使用 gbk 编码读取文件，适配硬件传值
         )
         df = pd.concat(chunks)
 
@@ -64,7 +65,7 @@ def load_health_data(file_path):
             missing = {"timestamp", "heart_rate"} - set(df.columns)
             raise ValueError(f"缺少必要字段：{missing}")
 
-        # 过滤掉所有汉字，只保留数字、英文、空格和符号
+        # 过滤掉所有汉字
         def clean_text(text):
             if isinstance(text, str):
                 # 使用正则表达式过滤掉所有汉字
@@ -82,24 +83,13 @@ def load_health_data(file_path):
         raise
 
 
-# ==== 数据预处理函数 ====
+# 数据预处理
 def preprocess_data(df):
-    """增强版预处理"""
     raw_df = df[["timestamp", "heart_rate"]].copy()
 
     # 异常值过滤 (保留40-140bpm)
     print("正在进行异常值过滤...")
     df = df[(df["heart_rate"] > 40) & (df["heart_rate"] < 140)].copy()
-
-    # # 时间序列处理
-    # print("正在进行时间序列对齐...")
-    # df_ts = (
-    #     df.set_index("timestamp")
-    #     .resample("30T")  # 30分钟间隔
-    #     .mean()
-    #     .interpolate(method="time")
-    #     .asfreq("30T")  # 新增：强制设置频率
-    # )
     df_ts = df
 
     # 标准化处理（仅对心率）
@@ -117,7 +107,6 @@ def preprocess_data(df):
 
 # 二、可视化模块
 def advanced_visualization(df, analysis):
-    """多维度可视化"""
     fig = plt.figure(figsize=(18, 12))
 
     # 设置全局字体大小和颜色
@@ -135,8 +124,8 @@ def advanced_visualization(df, analysis):
     ax1.set_title("心率趋势与移动平均")
     ax1.legend()
     ax1.grid(True)
-    ax1.set_xticks([])  # 新增
-    ax1.set_xlabel('')  # 新增
+    ax1.set_xticks([]) 
+    ax1.set_xlabel('')  
 
     # 功率谱密度
     ax2 = plt.subplot(3, 2, 3)
@@ -164,8 +153,8 @@ def advanced_visualization(df, analysis):
     ax3.set_title("HRV时域指标趋势")
     ax3.legend()
     ax3.grid(True)
-    ax3.set_xticks([])  # 新增
-    ax3.set_xlabel('')  # 新增
+    ax3.set_xticks([]) 
+    ax3.set_xlabel('')  
 
     # 异常值检测结果图
     ax4 = plt.subplot(3, 2, 4)
@@ -187,8 +176,8 @@ def advanced_visualization(df, analysis):
     ax4.set_title("异常值检测结果")
     ax4.legend()
     ax4.grid(True)
-    ax4.set_xticks([])  # 新增
-    ax4.set_xlabel('')  # 新增
+    ax4.set_xticks([])  
+    ax4.set_xlabel('')  
 
     # 心率分布直方图
     ax5 = plt.subplot(3, 2, 5)
@@ -208,9 +197,8 @@ def advanced_visualization(df, analysis):
     return fig
 
 
-# ==== 分析函数增强 ====
+# 分析函数
 def comprehensive_analysis(df, anomalies):
-    """增强分析逻辑"""
     analysis = {}
     hr = df["heart_rate"].values
 
@@ -220,7 +208,7 @@ def comprehensive_analysis(df, anomalies):
             "平均心率": hr.mean(),
             "最大值": hr.max(),
             "最小值": hr.min(),
-            "极差": np.ptp(hr),  # 修改此处调用方式
+            "极差": np.ptp(hr),  
             "心率标准差": hr.std(),
         }
     )
@@ -292,43 +280,14 @@ def anomaly_detection(df):
             warnings.append(f"⚠️ 异常低心率 {row['timestamp']}")
     return warnings
 
-
-# # 四、AI建议模块
-# def get_ai_advice(analysis, anomalies):
-#     """优化输入特征"""
-#     features = {
-#         "stat": ["均值", "标准差", "最大值", "最小值", "极差", "SDNN", "RMSSD"],
-#         "freq": ["LF/HF", "主要频率", "LF能量占比", "HF能量占比"],
-#         "trend": ["趋势斜率"],
-#     }
-
-#     client = ZhipuAI(api_key="62aca7a83e7a40308d2f4f51516884bc.J91FkaxCor4k3sDk")
-#     # 我自己弄的智谱清言的api，后期看看有别的更好的ai的话可以换，虽然是免费的但也别外传滥用
-#     messages = [
-#         {
-#             "role": "system",
-#             "content": """你是一位心脏健康专家，请根据以下特征分析,请注意，语言一定要通俗易懂，从多角度尽量的详尽的给出回答并顺便解释专业名词的意思：
-#                         1. 静息心率评估（正常范围60-100bpm）
-#                         2. 压力水平（LF/HF＞3表示高压）
-#                         3. HRV指标异常预警（SDNN＜50ms为异常）
-#                         4. 给出个性化建议（包含运动饮食医疗卫生健康多方面）""",
-#         },
-#         {"role": "user", "content": f"{analysis}\n异常记录：{anomalies}"},
-#     ]
-
-#     response = client.chat.completions.create(model="glm-4", messages=messages)
-#     return response.choices[0].message.content
-
-
-# 修改后的 generate_report() 函数
+# 生成报告函数
 def generate_report(df, analysis, advice, anomalies):
-    """生成增强版报告"""
 
     target_columns = ["heart_rate", "heart_rate_diff", "ma_3"]
     describe_df = df[target_columns].describe()
 
-    # 中文列名映射
-    cn_index = {  # 改列映射为索引映射
+    # 列名映射
+    cn_index = {  # 列映射为索引映射
         "count": "数据量",
         "mean": "平均值",
         "std": "标准差",
@@ -344,7 +303,7 @@ def generate_report(df, analysis, advice, anomalies):
         classes="table table-striped", header=True
     )
 
-    # 新增趋势图
+    # 趋势图
     extended_trend_fig = px.line(
         df, x="timestamp", y=["heart_rate", "ma_3"], title="心率与移动平均趋势分析"
     )
@@ -377,14 +336,14 @@ def generate_report(df, analysis, advice, anomalies):
     with open("report_template.html", "r", encoding="utf-8") as f:
         template = Template(f.read())
 
-    # 修改点2：明确指定分析列
+    # 明确指定分析列
     describe_df = df["heart_rate"].describe().to_frame()  # 转为DataFrame
 
-    # 修改点3：索引重命名
+    # 索引重命名
     stats_html = describe_df.rename(index=cn_index).to_html(
         classes="table table-striped", header=False  # 隐藏列名
     )
-    # 修正后的模板渲染
+    # 模板渲染
     rendered = template.render(
         stats=stats_html,
         analysis=analysis,
@@ -408,7 +367,7 @@ class HeartAnalysisApp:
         self.root = root
 
         style = ttk.Style()
-        style.theme_use("clam")  # 使用现代主题
+        style.theme_use("clam")  
         style.configure(".", font=("微软雅黑", 10))  # 全局字体
         style.configure("TButton", padding=6)  # 按钮样式
         style.map(
@@ -428,20 +387,17 @@ class HeartAnalysisApp:
         self.running = False
         self.fig_canvas = None  # 初始化画布
 
-        self.decomposition_img = None  # 新增：保存图片引用
+        self.decomposition_img = None  # 保存图片引用
         self.create_widgets()
 
         self.speech_lock = threading.Lock()
         self.is_speaking = False
         # 初始化音频系统
         pygame.mixer.init()
-        # # 新增音频存储路径
-        # self.audio_dir = "temp_audio"
-        # os.makedirs(self.audio_dir, exist_ok=True)  # 自动创建目录
+
         self.current_request = None
 
-        self.use_local_tts = True  # 切换本地TTS的开关
-        self.init_local_tts()  # 初始化本地TTS引擎
+        # 该部分初始化部分弃用，仅作调试使用
 
     def create_widgets(self):
         # 工具栏
@@ -464,7 +420,7 @@ class HeartAnalysisApp:
             self.toolbar,
             text="就绪",
             foreground="red",
-            font=("微软雅黑", 20),  # 设置字体为 Arial，大小为 14
+            font=("微软雅黑", 20), 
         )
         self.status_label.pack(side=tk.RIGHT, padx=10)
 
@@ -516,7 +472,7 @@ class HeartAnalysisApp:
             preview = f"记录数: {len(self.processed_data)}\n"
             preview += f"时间范围:\n{self.processed_data['timestamp'].min()}\n至\n{self.processed_data['timestamp'].max()}\n\n"
 
-            # 显示前几行数据
+            # 显示数据详情
             preview += "数据预览：\n"
             preview += self.processed_data.to_string(index=False)
 
@@ -569,7 +525,6 @@ class HeartAnalysisApp:
         img_container = ttk.Frame(parent, relief="groove", borderwidth=2)
         img_container.pack(fill=tk.BOTH, expand=True)
 
-        # 标题
         ttk.Label(
             img_container,
             text="可视化分析",
@@ -582,7 +537,7 @@ class HeartAnalysisApp:
         self.img_label.pack(fill=tk.BOTH, expand=True, padx=10, pady=10)
 
         # 创建画布用于显示图像
-        self.fig_canvas = None  # 确保初始化为 None
+        self.fig_canvas = None  # 初始化为 None
 
     def build_page3(self, parent):
         """构建第三页（优化版）"""
@@ -636,7 +591,7 @@ class HeartAnalysisApp:
         self.user_input.bind("<Return>", lambda event: self.send_message())
 
     def _on_canvas_configure(self, event):
-        """处理画布尺寸变化"""
+        """处理画布尺寸变化以自适应宽度"""
         # 更新内部框架宽度
         self.chat_canvas.itemconfigure("inner_frame", width=event.width)
 
@@ -648,12 +603,12 @@ class HeartAnalysisApp:
                         child.config(wraplength=event.width - 20)  # 保留边距
 
     def _on_mousewheel(self, event):
-        """处理鼠标滚轮事件（优化版）"""
+        """处理鼠标滚轮事件"""
         if self.chat_canvas.winfo_height() > 0:
             self.chat_canvas.yview_scroll(int(-1 * (event.delta / 120)), "units")
 
     def send_message(self):
-        """处理用户输入并获取AI回复（优化版）"""
+        """处理用户输入并获取AI回复"""
         user_message = self.user_input.get().strip()
         if not user_message:
             return
@@ -701,7 +656,7 @@ class HeartAnalysisApp:
                 padding=10,  # 增加内边距
                 anchor="nw",
                 justify="left",
-                font=("微软雅黑", 10),  # 统一字体
+                font=("微软雅黑", 10),  
             )
             text_label.pack(side=tk.LEFT, fill=tk.X, expand=True)
             body_frame.pack(fill=tk.X)
@@ -715,7 +670,7 @@ class HeartAnalysisApp:
             # 保持滚动到底部
             self.chat_canvas.yview_moveto(1.0)
 
-            # 更新对话历史
+            # 更新对话历史以实现多轮对话
             self.chat_history.extend(
                 [
                     {"role": "user", "content": user_message},
@@ -741,12 +696,12 @@ class HeartAnalysisApp:
             self.root.update()
 
     def _clean_text(self, text):
-        """优化版文本清理"""
+        """文本清理"""
         # 去除markdown特殊符号
-        text = re.sub(r'[*#\-`~_\[\](){}<>|=+]', '', text)
+        text = re.sub(r'[*#\`~_\[\](){}<>|=+]', '', text)
         
         # 合并连续空行（保留最多一个空行）
-        text = re.sub(r'\n{3,}', '\n\n', text)
+        # text = re.sub(r'\n{3,}', '\n\n', text)
         
         # 去除行首尾空白
         text = re.sub(r'^\s+|\s+$', '', text, flags=re.MULTILINE)
@@ -759,7 +714,7 @@ class HeartAnalysisApp:
         
         return text.strip()
 
-    # 新增公共方法（放在 HeartAnalysisApp 类中）
+    # 统一的AI接口调用方法
     def _call_ai_api(self, messages, model="glm-4-plus"):
         """统一的AI接口调用方法"""
         client = ZhipuAI(api_key="62aca7a83e7a40308d2f4f51516884bc.J91FkaxCor4k3sDk")
@@ -770,7 +725,7 @@ class HeartAnalysisApp:
             print(f"API调用失败: {str(e)}")
             return None
 
-    # 修改后的 get_ai_advice（移入类方法）
+    # 获取AI建议
     def get_ai_advice(self):
         """获取AI建议"""
         system_prompt = """你是一位心脏健康专家，请根据以下特征分析,请注意，语言一定要通俗易懂，从多角度尽量的详尽的给出回答并顺便解释专业名词的意思。返回结果不要出现“*”“-”“#”等符号，即不要出现加粗及标题文本：
@@ -787,7 +742,7 @@ class HeartAnalysisApp:
             },
         ]
         raw_advice = self._call_ai_api(messages)
-        return self._clean_text(raw_advice)  # 增加二次清洗
+        return self._clean_text(raw_advice)  # 二次清洗
 
     def load_data(self):
         if self.running:
@@ -917,7 +872,7 @@ class HeartAnalysisApp:
                     self.anomalies,
                 )
 
-                # 修正打开方式（原错误打开了模板文件）
+                # 明确打开方式
                 if os.name == "nt":  # Windows
                     os.startfile(report_path)  # 打开生成的报告文件
                 else:  # Mac/Linux
@@ -992,7 +947,7 @@ class HeartAnalysisApp:
         """安全停止音频播放"""
         try:
 
-            # 停止本地TTS
+            # 停止本地TTS，已弃用，保留调试用
             if hasattr(self, 'engine'):
                 self.engine.stop()
             # 停止所有音频通道
@@ -1013,46 +968,6 @@ class HeartAnalysisApp:
         error_window.title("错误提示")
         ttk.Label(error_window, text=message, foreground="red").pack(padx=20, pady=10)
         ttk.Button(error_window, text="确定", command=error_window.destroy).pack(pady=5)
-
-    def init_local_tts(self):
-        """初始化本地TTS引擎"""
-        try:
-            import pyttsx3
-            self.engine = pyttsx3.init()
-            # 配置语音参数
-            self.engine.setProperty('rate', 150)    # 语速 (默认200)
-            self.engine.setProperty('volume', 0.9)  # 音量 (0-1)
-            # 获取可用语音列表（调试用）
-            voices = self.engine.getProperty('voices')
-            print(f"可用语音引擎：{[v.name for v in voices]}")
-        except Exception as e:
-            print(f"本地TTS初始化失败: {str(e)}")
-            self.use_local_tts = False
-
-    def _use_local_tts(self, text, button, request_id):
-        """使用本地TTS引擎"""
-        try:
-            def speak():
-                try:
-                    # 重置停止标志
-                    self.engine.connect('started-utterance', lambda: button.config(text="⏹"))
-                    self.engine.connect('finished-utterance', lambda: button.after(0, lambda: button.config(text="▶")))
-                    
-                    # 开始播放
-                    self.engine.say(text)
-                    self.engine.runAndWait()
-                    
-                except Exception as e:
-                    print(f"本地TTS错误: {str(e)}")
-                    self.show_error("本地语音功能异常")
-
-            # 在独立线程中运行
-            tts_thread = threading.Thread(target=speak, daemon=True)
-            tts_thread.start()
-
-        except Exception as e:
-            print(f"本地TTS异常: {str(e)}")
-            self.show_error("语音播放失败")
 
 
 if __name__ == "__main__":
