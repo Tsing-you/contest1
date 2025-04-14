@@ -32,6 +32,8 @@ import time
 import io
 import re
 
+import pyttsx3
+
 
 rcParams["font.sans-serif"] = ["SimHei"]  # 设置中文字体
 rcParams["axes.unicode_minus"] = False  # 解决负号显示问题
@@ -412,6 +414,9 @@ class HeartAnalysisApp:
         # self.audio_dir = "temp_audio"
         # os.makedirs(self.audio_dir, exist_ok=True)  # 自动创建目录
         self.current_request = None
+
+        self.use_local_tts = True  # 切换本地TTS的开关
+        self.init_local_tts()  # 初始化本地TTS引擎
 
     def create_widgets(self):
         # 工具栏
@@ -916,55 +921,66 @@ class HeartAnalysisApp:
             ).start()
 
     def start_speech(self, text, button, request_id):
-        try:
-            # 强制重置音频系统
-            pygame.mixer.quit()
-            pygame.mixer.init(frequency=22050, size=-16, channels=2)  # 明确初始化参数
-
-            # 使用内存流保存音频（避免文件操作）
-            with io.BytesIO() as audio_stream:
-                tts = gTTS(text=text, lang="zh")
-                tts.write_to_fp(audio_stream)
-                audio_stream.seek(0)
-
-                # 检查请求是否已过期
-                if request_id != self.current_request:
-                    return
-
-                # 加载并播放音频
-                sound = pygame.mixer.Sound(audio_stream)
-                channel = sound.play()
-
-                # 实时状态检查循环
-                while channel.get_busy() and self.is_speaking:
-                    pygame.time.Clock().tick(10)
-                    # 双重验证请求有效性
-                    if request_id != self.current_request or not self.is_speaking:
-                        channel.stop()
-                        break
-
-        except Exception as e:
-            print(f"语音播放错误: {str(e)}")
-
-        finally:
-            with self.speech_lock:
-                # 仅更新当前请求的状态
-                if request_id == self.current_request:
-                    self.is_speaking = False
-                    # 使用after确保在主线程更新UI
-                    button.after(0, lambda: button.config(text="▶"))
-                # 强制释放音频资源
+        if self.use_local_tts:
+            self._use_local_tts(text, button, request_id)
+        else:
+            try:
+                # 强制重置音频系统
                 pygame.mixer.quit()
+                pygame.mixer.init(frequency=22050, size=-16, channels=2)  # 明确初始化参数
+
+                # 使用内存流保存音频（避免文件操作）
+                with io.BytesIO() as audio_stream:
+                    tts = gTTS(text=text, lang="zh")
+                    tts.write_to_fp(audio_stream)
+                    audio_stream.seek(0)
+
+                    # 检查请求是否已过期
+                    if request_id != self.current_request:
+                        return
+
+                    # 加载并播放音频
+                    sound = pygame.mixer.Sound(audio_stream)
+                    channel = sound.play()
+
+                    # 实时状态检查循环
+                    while channel.get_busy() and self.is_speaking:
+                        pygame.time.Clock().tick(10)
+                        # 双重验证请求有效性
+                        if request_id != self.current_request or not self.is_speaking:
+                            channel.stop()
+                            break
+
+            except Exception as e:
+                print(f"语音播放错误: {str(e)}")
+
+            finally:
+                with self.speech_lock:
+                    # 仅更新当前请求的状态
+                    if request_id == self.current_request:
+                        self.is_speaking = False
+                        # 使用after确保在主线程更新UI
+                        button.after(0, lambda: button.config(text="▶"))
+                    # 强制释放音频资源
+                    pygame.mixer.quit()
 
     def _safe_stop(self):
         """安全停止音频播放"""
         try:
+
+            # 停止本地TTS
+            if hasattr(self, 'engine'):
+                self.engine.stop()
             # 停止所有音频通道
             if pygame.mixer.get_init():
                 pygame.mixer.music.stop()
-                for channel in pygame.mixer.get_init():
-                    channel.stop()
-                # pygame.mixer.quit()
+                pygame.mixer.stop()  # 新增：停止所有活动声道
+
+            # 获取最大声道数
+            num_channels = pygame.mixer.get_num_channels()
+            # 停止所有声道
+            for i in range(num_channels):
+                pygame.mixer.Channel(i).stop()
         except Exception as e:
             print(f"停止播放时发生错误: {str(e)}")
 
@@ -973,6 +989,46 @@ class HeartAnalysisApp:
         error_window.title("错误提示")
         ttk.Label(error_window, text=message, foreground="red").pack(padx=20, pady=10)
         ttk.Button(error_window, text="确定", command=error_window.destroy).pack(pady=5)
+
+    def init_local_tts(self):
+        """初始化本地TTS引擎"""
+        try:
+            import pyttsx3
+            self.engine = pyttsx3.init()
+            # 配置语音参数
+            self.engine.setProperty('rate', 150)    # 语速 (默认200)
+            self.engine.setProperty('volume', 0.9)  # 音量 (0-1)
+            # 获取可用语音列表（调试用）
+            voices = self.engine.getProperty('voices')
+            print(f"可用语音引擎：{[v.name for v in voices]}")
+        except Exception as e:
+            print(f"本地TTS初始化失败: {str(e)}")
+            self.use_local_tts = False
+
+    def _use_local_tts(self, text, button, request_id):
+        """使用本地TTS引擎"""
+        try:
+            def speak():
+                try:
+                    # 重置停止标志
+                    self.engine.connect('started-utterance', lambda: button.config(text="⏹"))
+                    self.engine.connect('finished-utterance', lambda: button.after(0, lambda: button.config(text="▶")))
+                    
+                    # 开始播放
+                    self.engine.say(text)
+                    self.engine.runAndWait()
+                    
+                except Exception as e:
+                    print(f"本地TTS错误: {str(e)}")
+                    self.show_error("本地语音功能异常")
+
+            # 在独立线程中运行
+            tts_thread = threading.Thread(target=speak, daemon=True)
+            tts_thread.start()
+
+        except Exception as e:
+            print(f"本地TTS异常: {str(e)}")
+            self.show_error("语音播放失败")
 
 
 if __name__ == "__main__":
