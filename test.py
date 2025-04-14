@@ -31,6 +31,8 @@ import threading
 import time
 import io
 import re
+import edge_tts
+import asyncio
 
 import pyttsx3
 
@@ -921,48 +923,47 @@ class HeartAnalysisApp:
             ).start()
 
     def start_speech(self, text, button, request_id):
-        if self.use_local_tts:
-            self._use_local_tts(text, button, request_id)
-        else:
+        async def async_tts():
             try:
-                # 强制重置音频系统
-                pygame.mixer.quit()
-                pygame.mixer.init(frequency=22050, size=-16, channels=2)  # 明确初始化参数
-
-                # 使用内存流保存音频（避免文件操作）
-                with io.BytesIO() as audio_stream:
-                    tts = gTTS(text=text, lang="zh")
-                    tts.write_to_fp(audio_stream)
-                    audio_stream.seek(0)
-
-                    # 检查请求是否已过期
-                    if request_id != self.current_request:
+                # 使用edge-tts生成音频
+                communicate = edge_tts.Communicate(text, "zh-CN-YunxiNeural")
+                audio_stream = b""
+                
+                async for chunk in communicate.stream():
+                    if chunk["type"] == "audio":
+                        audio_stream += chunk["data"]
+                    # 检查是否应该中止
+                    if request_id != self.current_request or not self.is_speaking:
                         return
 
-                    # 加载并播放音频
-                    sound = pygame.mixer.Sound(audio_stream)
+                # 将音频数据存入内存
+                with io.BytesIO(audio_stream) as audio_file:
+                    # 初始化pygame mixer
+                    pygame.mixer.quit()
+                    pygame.mixer.init(frequency=22050)
+                    sound = pygame.mixer.Sound(audio_file)
                     channel = sound.play()
 
-                    # 实时状态检查循环
+                    # 等待播放完成或中止
                     while channel.get_busy() and self.is_speaking:
                         pygame.time.Clock().tick(10)
-                        # 双重验证请求有效性
-                        if request_id != self.current_request or not self.is_speaking:
+                        if request_id != self.current_request:
                             channel.stop()
                             break
 
             except Exception as e:
-                print(f"语音播放错误: {str(e)}")
-
+                print(f"Edge-TTS错误: {str(e)}")
             finally:
                 with self.speech_lock:
-                    # 仅更新当前请求的状态
                     if request_id == self.current_request:
                         self.is_speaking = False
-                        # 使用after确保在主线程更新UI
                         button.after(0, lambda: button.config(text="▶"))
-                    # 强制释放音频资源
-                    pygame.mixer.quit()
+
+        # 在新线程中运行异步任务
+        threading.Thread(
+            target=lambda: asyncio.run(async_tts()),
+            daemon=True
+        ).start()
 
     def _safe_stop(self):
         """安全停止音频播放"""
