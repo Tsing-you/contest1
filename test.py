@@ -41,7 +41,6 @@ rcParams["font.sans-serif"] = ["SimHei"]  # 设置中文字体
 rcParams["axes.unicode_minus"] = False  # 解决负号显示问题
 
 
-# 一、数据模块
 def load_health_data(file_path):
     """添加文件读取进度显示"""
     try:
@@ -50,13 +49,31 @@ def load_health_data(file_path):
         print(f"正在读取文件（大小：{file_size/1024:.1f}KB）...")
 
         # 使用逐块读取优化大文件处理
-        chunks = pd.read_csv(file_path, parse_dates=["timestamp"], chunksize=1000)
+        chunks = pd.read_csv(
+            file_path,
+            parse_dates=["timestamp"],
+            chunksize=1000,
+            header=None,  # 告诉 pandas 文件没有列头
+            names=["timestamp", "heart_rate"],  # 手动指定列头
+            encoding="gbk"  # 使用 latin-1 编码读取文件
+        )
         df = pd.concat(chunks)
 
         # 验证必要字段
         if not {"timestamp", "heart_rate"}.issubset(df.columns):
             missing = {"timestamp", "heart_rate"} - set(df.columns)
             raise ValueError(f"缺少必要字段：{missing}")
+
+        # 过滤掉所有汉字，只保留数字、英文、空格和符号
+        def clean_text(text):
+            if isinstance(text, str):
+                # 使用正则表达式过滤掉所有汉字
+                return re.sub(r'[\u4e00-\u9fa5]', '', text)
+            return text
+
+        # 对每一行的 "timestamp" 和 "heart_rate" 列进行清理
+        df["timestamp"] = df["timestamp"].apply(clean_text)
+        df["heart_rate"] = df["heart_rate"].apply(clean_text)
 
         print("文件读取成功，有效记录数：", len(df))
         return df.dropna()
@@ -118,6 +135,8 @@ def advanced_visualization(df, analysis):
     ax1.set_title("心率趋势与移动平均")
     ax1.legend()
     ax1.grid(True)
+    ax1.set_xticks([])  # 新增
+    ax1.set_xlabel('')  # 新增
 
     # 功率谱密度
     ax2 = plt.subplot(3, 2, 3)
@@ -145,6 +164,8 @@ def advanced_visualization(df, analysis):
     ax3.set_title("HRV时域指标趋势")
     ax3.legend()
     ax3.grid(True)
+    ax3.set_xticks([])  # 新增
+    ax3.set_xlabel('')  # 新增
 
     # 异常值检测结果图
     ax4 = plt.subplot(3, 2, 4)
@@ -166,6 +187,8 @@ def advanced_visualization(df, analysis):
     ax4.set_title("异常值检测结果")
     ax4.legend()
     ax4.grid(True)
+    ax4.set_xticks([])  # 新增
+    ax4.set_xlabel('')  # 新增
 
     # 心率分布直方图
     ax5 = plt.subplot(3, 2, 5)
