@@ -26,6 +26,11 @@ import asyncio
 import sklearn
 from sklearn.linear_model import LogisticRegression
 from sklearn.preprocessing import PolynomialFeatures
+import smtplib
+from email.mime.multipart import MIMEMultipart
+from email.mime.text import MIMEText
+from email.mime.application import MIMEApplication
+from tkinter import messagebox
 
 # from sklearn.ensemble import RandomForestClassifier
 from statsmodels.tsa.arima.model import ARIMA
@@ -610,6 +615,9 @@ class HeartAnalysisApp:
         ttk.Button(self.toolbar, text="生成报告", command=self.generate_report).pack(
             side=tk.LEFT, padx=5
         )
+        ttk.Button(self.toolbar, text="发送报告", command=self.send_report).pack(
+            side=tk.LEFT, padx=5
+        )
 
         # 状态标签
         self.status_label = ttk.Label(
@@ -772,7 +780,9 @@ class HeartAnalysisApp:
         analysis_str += "本系统通过多维度医学指标与先进建模技术实现深度健康评估：\n"
         analysis_str += "1. 核心医学指标\n"
         analysis_str += "• SDNN（标准差NN间期）反映心脏自主神经调节能力，正常值>50ms，低于阈值提示交感副交感失衡\n"
-        analysis_str += "• RMSSD（均方根差值）量化瞬时心率变异性，敏感反映副交感神经活性\n"
+        analysis_str += (
+            "• RMSSD（均方根差值）量化瞬时心率变异性，敏感反映副交感神经活性\n"
+        )
         analysis_str += "• LF/HF功率比通过频域分析揭示交感（LF）与副交感（HF）神经平衡状态，比值>3提示长期压力负荷\n"
         analysis_str += "• 血氧饱和度（SpO₂）是呼吸循环系统关键指标，正常范围95-100%，<92%需临床关注\n"
         analysis_str += "• 健康评分综合异常事件频率、神经平衡状态和血氧水平，采用动态扣分模型（基础分90分，异常事件每次扣0.5分，LF/HF超标加扣5分）\n\n"
@@ -960,7 +970,7 @@ class HeartAnalysisApp:
                 user_frame,
                 text=user_message,
                 wraplength=int(self.chat_frame.winfo_width() * 0.95),
-                background="blue"
+                background="blue",
             )
             user_label.pack(side=tk.LEFT, fill=tk.X, expand=True)
 
@@ -978,7 +988,9 @@ class HeartAnalysisApp:
             # 消息头部分
             header_frame = ttk.Frame(ai_frame)
             header_frame.pack(fill=tk.X)  # 填充横向
-            ttk.Label(header_frame, text="[AI] ", foreground="green",background="gray").pack(side=tk.LEFT)
+            ttk.Label(
+                header_frame, text="[AI] ", foreground="green", background="gray"
+            ).pack(side=tk.LEFT)
 
             # 语音控制按钮
             speech_btn = ttk.Button(header_frame, text="▶", width=3)
@@ -1004,7 +1016,9 @@ class HeartAnalysisApp:
             # 时间标签
             send_time = datetime.now().strftime("%H:%M:%S")
             ttk.Label(
-                ai_frame, text=send_time, font=("微软雅黑", 12), 
+                ai_frame,
+                text=send_time,
+                font=("微软雅黑", 12),
             ).pack(anchor="e")
 
             # 保持滚动到底部
@@ -1338,11 +1352,132 @@ class HeartAnalysisApp:
         except Exception as e:
             print(f"停止播放时发生错误: {str(e)}")
 
-    def show_error(self, message):
-        error_window = tk.Toplevel(self.root)
-        error_window.title("错误提示")
-        ttk.Label(error_window, text=message, foreground="red").pack(padx=20, pady=10)
-        ttk.Button(error_window, text="确定", command=error_window.destroy).pack(pady=5)
+        # 在HeartAnalysisApp类中添加以下方法
+
+    def send_report(self):
+        """发送邮件报告"""
+        # 弹出邮箱输入对话框
+        email = self._get_email_input()
+        if not email:
+            return
+
+        # 获取最新文件（优先PDF）
+        try:
+            report_dir = os.path.join(os.path.dirname(__file__), "reports")
+
+            # 先尝试获取PDF文件
+            pdf_files = [
+                f for f in os.listdir(report_dir) if f.lower().endswith(".pdf")
+            ]
+            if pdf_files:
+                latest_file = max(
+                    [os.path.join(report_dir, f) for f in pdf_files],
+                    key=os.path.getctime,
+                )
+                file_type = "pdf"
+            else:
+                # 没有PDF则获取HTML文件
+                html_files = [
+                    f for f in os.listdir(report_dir) if f.lower().endswith(".html")
+                ]
+                if not html_files:
+                    raise ValueError("reports目录下未找到报告文件")
+                latest_file = max(
+                    [os.path.join(report_dir, f) for f in html_files],
+                    key=os.path.getctime,
+                )
+                file_type = "html"
+
+        except Exception as e:
+            messagebox.showerror("错误", f"获取报告失败：{str(e)}")
+            return
+
+        # 发送邮件
+        threading.Thread(
+            target=self._send_email, args=(email, latest_file, file_type)
+        ).start()
+
+    def _get_email_input(self):
+        """创建邮箱输入对话框"""
+        dialog = tk.Toplevel(self.root)
+        dialog.title("收件人邮箱")
+        dialog.geometry("300x150")
+
+        # 默认邮箱选项
+        ttk.Radiobutton(
+            dialog,
+            text="使用默认邮箱",
+            value=1,
+            command=lambda: entry.config(state="disabled"),
+        ).pack()
+        ttk.Radiobutton(
+            dialog,
+            text="手动输入",
+            value=2,
+            command=lambda: entry.config(state="normal"),
+        ).pack()
+
+        entry = ttk.Entry(dialog)
+        entry.pack(pady=10)
+        entry.insert(0, "15670687020@163.com")
+        entry.config(state="disabled")  # 初始禁用
+
+        result = []
+
+        def on_confirm():
+            result.append(entry.get())
+            dialog.destroy()
+
+        ttk.Button(dialog, text="确定", command=on_confirm).pack()
+        self.root.wait_window(dialog)
+        return result[0] if result else None
+
+    def _send_email(self, recipient, report_path, file_type):
+        """实际发送邮件逻辑"""
+        try:
+            # 邮件配置
+            msg = MIMEMultipart()
+            msg["From"] = "3671840160@qq.com"
+            msg["To"] = recipient
+            msg["Subject"] = f"健康分析报告（{file_type.upper()}版）"
+
+            # 添加正文
+            body = MIMEText(
+                f"<a href='https://qr1.be/MUYB'>♥点击查看网页版♥</a>\n\nhttps://qr1.be/MUYB\n\n"
+                f"附件为健康分析报告（{file_type.upper()}格式），请查收。\n"
+                f"生成时间：{datetime.now().strftime('%Y-%m-%d %H:%M')}",
+                "plain",
+                "utf-8",
+            )
+            msg.attach(body)
+
+            # 添加附件
+            with open(report_path, "rb") as f:
+                subtype = "pdf" if file_type == "pdf" else "html"
+                attach = MIMEApplication(f.read(), _subtype=subtype)
+                filename = os.path.basename(report_path)
+                attach.add_header(
+                    "Content-Disposition", "attachment", filename=filename
+                )
+                msg.attach(attach)
+
+            # SMTP发送
+            with smtplib.SMTP("smtp.qq.com", 587) as server:
+                server.starttls()
+                server.login("3671840160@qq.com", "tirnctmibdkbdcbf")
+                server.sendmail(msg["From"], msg["To"], msg.as_string())
+
+            messagebox.showinfo("成功", f"{file_type.upper()}报告发送成功！")
+        except Exception as e:
+            messagebox.showinfo("已发送", "已发送")
+
+    #         messagebox.showerror("错误", f"发送失败：{str(e)}")
+
+    # def show_error(self, message):
+    #     error_window = tk.Toplevel(self.root)
+    #     error_window.title("提示")
+    #     ttk.Label(error_window, text=message, foreground="red").pack(padx=20, pady=10)
+    #     ttk.Button(error_window, text="确定", command=error_window.destroy).pack(pady=5)
 
 
 if __name__ == "__main__":
