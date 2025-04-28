@@ -756,8 +756,6 @@ class HeartAnalysisApp:
         analysis_str += f"• RMSSD：{analysis.get('RMSSD', 0):.1f} ms\n"
         analysis_str += f"• LF/HF平衡：{analysis.get('LF/HF', 0):.2f}（{'⚠️ 压力状态' if analysis['LF/HF']>3 else '✅ 平衡状态'})\n"
 
-        self.analysis_text.insert(tk.END, analysis_str)
-
         # 自动生成健康标签
         tags = []
         if analysis.get("健康评分", 0) > 80:
@@ -769,6 +767,30 @@ class HeartAnalysisApp:
 
         if tags:
             self.status_label.config(text=" | ".join(tags), foreground="orange")
+
+        analysis_str += "\n\n🔍 健康概念与技术解析 🔍\n"
+        analysis_str += "本系统通过多维度医学指标与先进建模技术实现深度健康评估：\n"
+        analysis_str += "1. 核心医学指标\n"
+        analysis_str += "• SDNN（标准差NN间期）反映心脏自主神经调节能力，正常值>50ms，低于阈值提示交感副交感失衡\n"
+        analysis_str += "• RMSSD（均方根差值）量化瞬时心率变异性，敏感反映副交感神经活性\n"
+        analysis_str += "• LF/HF功率比通过频域分析揭示交感（LF）与副交感（HF）神经平衡状态，比值>3提示长期压力负荷\n"
+        analysis_str += "• 血氧饱和度（SpO₂）是呼吸循环系统关键指标，正常范围95-100%，<92%需临床关注\n"
+        analysis_str += "• 健康评分综合异常事件频率、神经平衡状态和血氧水平，采用动态扣分模型（基础分90分，异常事件每次扣0.5分，LF/HF超标加扣5分）\n\n"
+
+        analysis_str += "2. 建模方法与技术实现\n"
+        analysis_str += "• 风险预测：逻辑回归模型分析心率>100bpm或血氧<92%的异常组合，输出心血管风险概率\n"
+        analysis_str += "• 趋势分析：线性回归捕捉心率长期趋势，ARIMA模型进行5步心率预测，结合滑动窗口标准差（24个数据点）评估心率平稳性\n"
+        analysis_str += "• 非线性关联：多项式回归（2次方程）量化血氧与心率的非线性关系，R²值反映关联强度\n"
+        analysis_str += "• 异常检测：采用±2σ动态阈值检测异常心率，结合血氧绝对阈值（<92%）实现多参数联合预警\n\n"
+
+        analysis_str += "3. 技术亮点\n"
+        analysis_str += "• 多模态融合：整合时域（HRV指标）、频域（功率谱分析）、非线性（多项式关联）特征，构建全面评估体系\n"
+        analysis_str += "• 可视化增强：Plotly交互图表与Matplotlib静态图表双引擎配合，支持缩放/数据点悬停分析\n"
+        analysis_str += "• 实时计算：滚动窗口标准差（24数据点）和动态阈值（±2σ）确保异常检测的实时性与自适应性\n"
+        analysis_str += "• 混合建模：传统统计指标（如SDNN）与机器学习模型（如ARIMA预测）协同工作，兼顾临床解释性与预测能力\n"
+        analysis_str += "• 临床关联：将LF/HF比值、血氧异常次数等客观指标直接映射到健康标签（如'压力状态'、'自主神经失调'）"
+
+        self.analysis_text.insert(tk.END, analysis_str)
 
     # 修改build_page2方法
     def build_page2(self, parent):
