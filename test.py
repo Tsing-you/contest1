@@ -31,8 +31,6 @@ from email.mime.multipart import MIMEMultipart
 from email.mime.text import MIMEText
 from email.mime.application import MIMEApplication
 from tkinter import messagebox
-
-# from sklearn.ensemble import RandomForestClassifier
 from statsmodels.tsa.arima.model import ARIMA
 
 
@@ -47,7 +45,7 @@ def load_health_data(file_path):
         df_sample = pd.read_csv(file_path, nrows=0, encoding='gbk')
         has_header = list(df_sample.columns) == ["timestamp", "heart_rate", "blood_oxygen"]
         
-        # 构建动态读取参数
+        # 构建动态读取参数，分块读取
         read_params = {
             "filepath_or_buffer": file_path,
             "parse_dates": ["timestamp"],
@@ -122,116 +120,8 @@ def preprocess_data(df):
     return df_ts.reset_index(), raw_df  # 返回处理后的数据和原始数据
 
 
-# 二、可视化模块
+# 可视化模块
 def advanced_visualization(df, analysis):
-    # fig = plt.figure(figsize=(18, 16))
-
-    # # 设置全局字体大小和颜色
-    # plt.rcParams.update({"font.size": 10})
-    # plt.rcParams["axes.prop_cycle"] = plt.cycler(
-    #     color=["#1f77b4", "#ff7f0e", "#2ca02c", "#d62728", "#9467bd"]
-    # )
-
-    # # 心率趋势与移动平均
-    # ax1 = plt.subplot(3, 2, 1)
-    # df["ma_3"] = df["heart_rate"].rolling(3).mean()
-    # valid_df = df.dropna(subset=["ma_3"])
-    # ax1.plot(valid_df["timestamp"], valid_df["heart_rate"], label="原始数据")
-    # ax1.plot(valid_df["timestamp"], valid_df["ma_3"], label="3点移动平均")
-    # ax1.set_title("心率趋势与移动平均")
-    # ax1.legend()
-    # ax1.grid(True)
-    # ax1.set_xticks([])
-    # ax1.set_xlabel("")
-
-    # # 功率谱密度
-    # ax2 = plt.subplot(3, 2, 3)
-    # f, Pxx = signal.welch(df["heart_rate"], fs=1.0, nperseg=256)
-    # ax2.semilogy(f, Pxx)
-    # ax2.set_xlabel("频率 [Hz]")
-    # ax2.set_title("功率谱密度")
-    # ax2.grid(True)
-
-    # # HRV时域指标趋势图
-    # ax3 = plt.subplot(3, 2, 2)
-    # hr = df["heart_rate"].values
-    # rr_intervals = 60000 / hr
-    # sdnn_values = np.array(
-    #     [np.std(rr_intervals[: i + 1], ddof=1) for i in range(len(rr_intervals))]
-    # )
-    # rmssd_values = np.array(
-    #     [
-    #         np.sqrt(np.mean(np.diff(rr_intervals[: i + 1]) ** 2))
-    #         for i in range(len(rr_intervals))
-    #     ]
-    # )
-    # ax3.plot(df["timestamp"], sdnn_values, label="SDNN")
-    # ax3.plot(df["timestamp"], rmssd_values, label="RMSSD")
-    # ax3.set_title("HRV时域指标趋势")
-    # ax3.legend()
-    # ax3.grid(True)
-    # ax3.set_xticks([])
-    # ax3.set_xlabel("")
-
-    # # 异常值检测结果图
-    # ax4 = plt.subplot(3, 2, 4)
-    # upper_bound = df["heart_rate"].mean() + 2 * df["heart_rate"].std()
-    # lower_bound = df["heart_rate"].mean() - 2 * df["heart_rate"].std()
-    # ax4.scatter(df["timestamp"], df["heart_rate"], color="blue", label="正常数据")
-    # ax4.scatter(
-    #     df[df["heart_rate"] > upper_bound]["timestamp"],
-    #     df[df["heart_rate"] > upper_bound]["heart_rate"],
-    #     color="red",
-    #     label="异常高心率",
-    # )
-    # ax4.scatter(
-    #     df[df["heart_rate"] < lower_bound]["timestamp"],
-    #     df[df["heart_rate"] < lower_bound]["heart_rate"],
-    #     color="green",
-    #     label="异常低心率",
-    # )
-    # ax4.set_title("异常值检测结果")
-    # ax4.legend()
-    # ax4.grid(True)
-    # ax4.set_xticks([])
-    # ax4.set_xlabel("")
-
-    # # 心率分布直方图
-    # ax5 = plt.subplot(3, 2, 5)
-    # ax5.hist(df["heart_rate"], bins=30, edgecolor="black")
-    # ax5.set_title("心率分布直方图")
-    # ax5.grid(True)
-
-    # # 频段能量占比饼图
-    # ax6 = plt.subplot(3, 2, 6)
-    # labels = ["LF(0.04-0.15Hz)", "HF(0.15-0.4Hz)"]
-    # sizes = [analysis["LF能量占比"], analysis["HF能量占比"]]
-    # ax6.pie(sizes, labels=labels, autopct="%1.1f%%")
-    # ax6.set_title("频段能量占比")
-
-    # # 新增血氧趋势子图（位置需要调整）
-    # ax7 = plt.subplot(4, 2, 7)
-    # ax7.plot(df["timestamp"], df["blood_oxygen"], label="血氧饱和度")
-    # ax7.set_title("血氧趋势变化")
-    # ax7.grid(True)
-    # ax7.set_xticks([])
-    # ax7.set_xlabel("")
-
-    # # 新增血氧异常检测子图
-    # ax8 = plt.subplot(4, 2, 8)
-    # ax8.scatter(
-    #     df["timestamp"],
-    #     df["blood_oxygen"],
-    #     c=np.where(df["blood_oxygen"] < 92, "red", "blue"),
-    # )
-    # ax8.set_title("血氧异常检测（<92%）")
-    # ax8.set_xticks([])
-    # ax8.set_xlabel("")
-
-    # plt.tight_layout()
-
-    # return fig
-
     fig = plt.figure(figsize=(15, 14))  # 增加整体高度
 
     # 设置全局字体大小和颜色
@@ -240,7 +130,7 @@ def advanced_visualization(df, analysis):
         color=["#1f77b4", "#ff7f0e", "#2ca02c", "#d62728", "#9467bd"]
     )
 
-    # 使用 GridSpec 来更灵活地控制子图布局
+    # 使用 GridSpec 灵活控制子图布局
     gs = fig.add_gridspec(nrows=4, ncols=2, hspace=0.5, wspace=0.1)
 
     # 心率趋势与移动平均
@@ -317,14 +207,14 @@ def advanced_visualization(df, analysis):
     ax6.pie(sizes, labels=labels, autopct="%1.1f%%")
     ax6.set_title("频段能量占比")
 
-    # 新增血氧趋势子图（位置需要调整）
+    # 血氧趋势图
     ax7 = fig.add_subplot(gs[3, 0])
     ax7.plot(df["timestamp"], df["blood_oxygen"], label="血氧饱和度")
     ax7.set_title("血氧趋势变化")
     ax7.grid(True)
     ax7.set_xticks([])
 
-    # 新增血氧异常检测子图
+    # 血氧异常检测图
     ax8 = fig.add_subplot(gs[3, 1])
     ax8.scatter(
         df["timestamp"],
@@ -408,8 +298,8 @@ def comprehensive_analysis(df, anomalies):
     trend_model = LinearRegression().fit(np.arange(len(hr)).reshape(-1, 1), hr)
     analysis["趋势斜率"] = trend_model.coef_[0]
 
-    # 1. 心血管风险预测模型（逻辑回归示例）
-    X = df[["heart_rate", "blood_oxygen", "SDNN"]].copy()  # 确保使用副本
+    # 心血管风险预测模型（逻辑回归）
+    X = df[["heart_rate", "blood_oxygen", "SDNN"]].copy()  # 使用副本
     X.fillna(X.mean(), inplace=True)  # 处理可能的NaN值
 
     y_risk = np.where((df["heart_rate"] > 100) | (df["blood_oxygen"] < 92), 1, 0)
@@ -425,9 +315,9 @@ def comprehensive_analysis(df, anomalies):
             resp_model.score(X_poly, df["heart_rate"]), 2
         )
     else:
-        analysis["血氧-心率关联度"] = 0  # 或注释掉此部分计算
+        analysis["血氧-心率关联度"] = 0  
 
-    # 3. 简化时序分析（改用标准差评估平稳性）
+    # 3. 时序分析（标准差评估平稳性）
     analysis["心率平稳性"] = (
         df["heart_rate"].rolling(24, min_periods=1).std().mean().round(2)
     )  # 24个数据点的滑动窗口标准差
@@ -507,12 +397,6 @@ def generate_report(df, analysis, advice, anomalies):
         classes="table table-striped", header=True
     )
 
-    # 趋势图
-    extended_trend_fig = px.line(
-        df, x="timestamp", y=["heart_rate", "ma_3"], title="心率与移动平均趋势分析"
-    )
-    extended_trend_html = pio.to_html(extended_trend_fig, full_html=False)
-
     # 生成交互式图表
     trend_fig = px.line(
         df,
@@ -531,30 +415,6 @@ def generate_report(df, analysis, advice, anomalies):
         title="血氧饱和度监测"
     )
     blood_oxygen_html = pio.to_html(blood_oxygen_fig, full_html=False)
-
-    # distribution_fig = px.histogram(
-    #     df, x="heart_rate", nbins=30, title="心率分布直方图"
-    # )
-    # distribution_html = pio.to_html(distribution_fig, full_html=False)
-
-    # 新增血氧趋势图
-    # blood_oxygen_fig = px.scatter(
-    #     df, 
-    #     x="timestamp", 
-    #     y="blood_oxygen",
-    #     color=df["blood_oxygen"].apply(lambda x: "异常" if x < 92 else "正常"),
-    #     title="血氧饱和度监测"
-    # )
-    # blood_oxygen_html = pio.to_html(blood_oxygen_fig, full_html=False)
-
-    # # 新增HRV指标图
-    # hrv_fig = px.line(
-    #     df,
-    #     x="timestamp",
-    #     y=["SDNN", "RMSSD"],
-    #     title="心率变异性趋势"
-    # )
-    # hrv_html = pio.to_html(hrv_fig, full_html=False)
 
     # 创建报告目录
     report_dir = "reports"
@@ -583,7 +443,6 @@ def generate_report(df, analysis, advice, anomalies):
         anomalies=anomalies,
         now=datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
         trend_chart=trend_html,
-        # distribution_chart=distribution_html,
         blood_oxygen_chart=blood_oxygen_html,
         risk_prediction=analysis.get('趋势预测', {}),
     )
@@ -594,7 +453,7 @@ def generate_report(df, analysis, advice, anomalies):
     return os.path.abspath(filepath)
 
 
-# 六、GUI界面
+# GUI界面
 class HeartAnalysisApp:
 
     def __init__(self, root):
@@ -602,7 +461,7 @@ class HeartAnalysisApp:
 
         style = ttk.Style()
         style.theme_use("clam")
-        style.configure(".", font=("微软雅黑", 10))  # 全局字体
+        style.configure(".", font=("微软雅黑", 14))  # 全局字体
         style.configure("TButton", padding=6)  # 按钮样式
         style.map(
             "TButton",
@@ -632,7 +491,6 @@ class HeartAnalysisApp:
 
         self.current_request = None
 
-        # 该部分初始化部分弃用，仅作调试使用
 
     def create_widgets(self):
         # 工具栏
@@ -699,7 +557,7 @@ class HeartAnalysisApp:
         analysis_frame.pack(fill=tk.X, pady=5)
 
         self.analysis_text = tk.Text(
-            analysis_frame, height=30, bg="#f8f9fa", relief="flat"
+            analysis_frame, height=30, bg="#f8f9fa", relief="flat",font=13,
         )
         self.analysis_text.pack(fill=tk.X)
 
@@ -748,7 +606,7 @@ class HeartAnalysisApp:
             f"• 血氧-心率关联：R²={analysis.get('血氧-心率关联度', 0):.2f}\n"
         )
 
-        # 新增健康风险评估
+        # 健康风险评估
         analysis_str += "\n⚠️ 风险评估 ⚠️\n"
         risk_factors = {
             "高频异常心率": analysis.get("异常数量", 0),
@@ -764,7 +622,7 @@ class HeartAnalysisApp:
             for feature, score in analysis["健康相关度"].items():
                 stars = "★" * int(score * 10)
                 analysis_str += f"• {feature}: {stars} ({score:.2f})\n"
-        elif "特征重要性" in analysis:  # 兼容旧版本
+        elif "特征重要性" in analysis:  
             for feature, importance in analysis["特征重要性"].items():
                 analysis_str += f"• {feature}: {importance:.0%}\n"
 
@@ -786,7 +644,7 @@ class HeartAnalysisApp:
         else:
             analysis_str += "✅ 未检测到显著异常事件\n"
 
-        # 新增健康趋势预测
+        # 健康趋势预测
         if "趋势预测" in analysis:
             analysis_str += "\n🔮 未来趋势预测 🔮\n"
             analysis_str += f"• 下一时段心率预测：{analysis['趋势预测']['心率']:.0f}±{analysis['趋势预测']['波动']:.1f}bpm\n"
@@ -836,7 +694,6 @@ class HeartAnalysisApp:
 
         self.analysis_text.insert(tk.END, analysis_str)
 
-    # 修改build_page2方法
     def build_page2(self, parent):
         """构建第二页（优化边距和滚动）"""
         # 主容器使用Frame代替Canvas实现更简单的滚动
@@ -863,11 +720,11 @@ class HeartAnalysisApp:
         canvas.grid(row=0, column=0, sticky="nsew")
         scrollbar.grid(row=0, column=1, sticky="ns")
 
-        # 图表容器（减少边距）
+        # 图表容器
         self.img_label = ttk.Frame(scrollable_frame)
         self.img_label.pack(
             fill=tk.BOTH, expand=True, padx=2, pady=6
-        )  # 内部边距保留5px
+        ) 
 
         # 绑定全局鼠标滚轮
         canvas.bind(
@@ -878,14 +735,10 @@ class HeartAnalysisApp:
         )
         canvas.bind("<Leave>", lambda e: canvas.unbind_all("<MouseWheel>"))
 
-    # 修改show_matplotlib_figure方法
     def show_matplotlib_figure(self, fig):
         # 清除旧内容
         if self.fig_canvas:
             self.fig_canvas.get_tk_widget().destroy()
-
-        # # 调整图表尺寸
-        # fig.set_size_inches(17, len(fig.axes) * 2)  # 动态高度
 
         # 显示图表
         self.fig_canvas = FigureCanvasTkAgg(fig, master=self.img_label)
@@ -967,18 +820,6 @@ class HeartAnalysisApp:
         send_button.pack(side=tk.RIGHT, padx=5)
         self.user_input.bind("<Return>", lambda event: self.send_message())
 
-    # def _on_canvas_configure(self, event):
-    #     """处理画布尺寸变化以自适应宽度"""
-    #     # 更新内部框架宽度
-    #     self.chat_canvas.itemconfigure("inner_frame", width=event.width)
-
-    #     # 更新消息标签换行长度
-    #     for widget in self.chat_frame.winfo_children():
-    #         if isinstance(widget, ttk.Frame):
-    #             for child in widget.winfo_children():
-    #                 if isinstance(child, ttk.Label):
-    #                     child.config(wraplength=event.width - 20)  # 保留边距
-
     def _on_mousewheel(self, event, canvas):
         """统一处理鼠标滚轮事件"""
         if canvas.winfo_height() > 0:
@@ -1037,7 +878,6 @@ class HeartAnalysisApp:
                 body_frame,
                 text=clean_ai_reply,
                 wraplength=1600,
-                # background="#f0f8ff",
                 padding=10,  # 增加内边距
                 anchor="nw",
                 justify="left",
@@ -1089,9 +929,6 @@ class HeartAnalysisApp:
         """文本清理"""
         # 去除markdown特殊符号
         text = re.sub(r"[*#\`~_\[\](){}<>|=+]", "", text)
-
-        # 合并连续空行（保留最多一个空行）
-        # text = re.sub(r'\n{3,}', '\n\n', text)
 
         # 去除行首尾空白
         text = re.sub(r"^\s+|\s+$", "", text, flags=re.MULTILINE)
@@ -1223,19 +1060,6 @@ class HeartAnalysisApp:
                     ai_frame = ttk.Frame(self.chat_frame)
                     ai_frame.pack(fill=tk.X, expand=True)
 
-                    # ttk.Label(ai_frame, text="[AI] ", foreground="green").pack(
-                    #     side=tk.LEFT
-                    # )
-
-                    # # 添加语音按钮
-                    # speech_btn = ttk.Button(ai_frame, text="▶", width=3)
-                    # speech_btn.config(
-                    #     command=lambda t=self.ai_advice: self.toggle_speech(
-                    #         t, speech_btn
-                    #     )
-                    # )
-                    # speech_btn.pack(side=tk.RIGHT, padx=5)
-
                     # 消息头部分
                     header_frame = ttk.Frame(ai_frame)
                     header_frame.pack(fill=tk.X)  # 填充横向
@@ -1257,10 +1081,9 @@ class HeartAnalysisApp:
                         ai_frame,
                         text=self.ai_advice,
                         wraplength=self.chat_canvas.winfo_width()
-                        - 20,  # 1800,  # int(self.chat_frame.winfo_width()),
-                        font=("微软雅黑", 16),  # 修改字号为16，字体为微软雅黑
-                        foreground="green",  # 修改文字颜色为蓝色
-                        # background="#f0f8ff",
+                        - 20,
+                        font=("微软雅黑", 16),
+                        foreground="green", 
                         anchor="w",
                         justify="left",
                     ).pack(side=tk.LEFT)
@@ -1277,16 +1100,6 @@ class HeartAnalysisApp:
                 print(traceback.format_exc())
         self.status_label.config(text="就绪", foreground="green")
         self.running = False
-
-    # def show_matplotlib_figure(self, fig):
-    #     # 清除旧的画布内容
-    #     if self.fig_canvas:
-    #         self.fig_canvas.get_tk_widget().destroy()
-
-    #     # 创建新的画布并显示图表
-    #     self.fig_canvas = FigureCanvasTkAgg(fig, master=self.img_label)
-    #     self.fig_canvas.draw()
-    #     self.fig_canvas.get_tk_widget().pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
 
     def generate_report(self):
         if self.processed_data is not None:
@@ -1376,7 +1189,7 @@ class HeartAnalysisApp:
             # 停止所有音频通道
             if pygame.mixer.get_init():
                 pygame.mixer.music.stop()
-                pygame.mixer.stop()  # 新增：停止所有活动声道
+                pygame.mixer.stop()  # 停止所有活动声道
 
             # 获取最大声道数
             num_channels = pygame.mixer.get_num_channels()
@@ -1385,8 +1198,6 @@ class HeartAnalysisApp:
                 pygame.mixer.Channel(i).stop()
         except Exception as e:
             print(f"停止播放时发生错误: {str(e)}")
-
-        # 在HeartAnalysisApp类中添加以下方法
 
     def send_report(self):
         """发送邮件报告"""
