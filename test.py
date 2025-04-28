@@ -483,6 +483,7 @@ class HeartAnalysisApp:
 
         self.decomposition_img = None  # 保存图片引用
         self.create_widgets()
+        self.report_path=None
 
         self.speech_lock = threading.Lock()
         self.is_speaking = False
@@ -1110,6 +1111,7 @@ class HeartAnalysisApp:
                     self.ai_advice,
                     self.anomalies,
                 )
+                self.report_path = report_path
 
                 # 明确打开方式
                 if os.name == "nt":  # Windows
@@ -1202,14 +1204,18 @@ class HeartAnalysisApp:
     def send_report(self):
         """发送邮件报告"""
         # 弹出邮箱输入对话框
+        if not hasattr(self, 'report_path') or self.report_path is None:
+            messagebox.showwarning("提示", "请先生成报告再发送")
+            return
+    
         email = self._get_email_input()
         if not email:
             return
+        
+        report_dir = os.path.dirname(self.report_path)
 
         # 获取最新文件（优先PDF）
         try:
-            report_dir = os.path.join(os.path.dirname(__file__), "reports")
-
             # 先尝试获取PDF文件
             pdf_files = [
                 f for f in os.listdir(report_dir) if f.lower().endswith(".pdf")
