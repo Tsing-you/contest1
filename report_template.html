@@ -4,7 +4,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>心脏健康报告 - {{ now }}</title>
+    <title>心脏健康分析报告 - {{ now }}</title>
     
     <!-- 依赖库 -->
     <link href="https://cdn.bootcdn.net/ajax/libs/twitter-bootstrap/5.1.3/css/bootstrap.min.css" rel="stylesheet">
@@ -19,7 +19,8 @@
         
         body {
             font-family: "Microsoft YaHei", sans-serif;
-            background: #ecf0f1;
+            background: #f8f9fa;
+            line-height: 1.6;
         }
         
         .report-header {
@@ -27,6 +28,7 @@
             color: white;
             padding: 2rem;
             border-radius: 0 0 30px 30px;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.1);
         }
         
         .metric-card {
@@ -34,10 +36,8 @@
             border-radius: 15px;
             box-shadow: 0 2px 5px rgba(0,0,0,0.1);
             transition: transform 0.3s;
-        }
-        
-        .metric-card:hover {
-            transform: translateY(-3px);
+            padding: 1.5rem;
+            margin-bottom: 1.5rem;
         }
         
         .chart-container {
@@ -45,51 +45,73 @@
             border-radius: 15px;
             padding: 1rem;
             margin: 1rem 0;
+            box-shadow: 0 2px 5px rgba(0,0,0,0.05);
         }
         
         .alert-section {
             border-left: 4px solid var(--highlight);
-            background: rgba(231, 76, 60, 0.1);
+            background: rgba(231, 76, 60, 0.05);
+            padding: 1.5rem;
+            margin: 1.5rem 0;
         }
-        
+
+        .risk-indicator {
+            font-size: 1.2rem;
+            padding: 0.8rem;
+            border-radius: 10px;
+            margin: 0.5rem 0;
+        }
+
+        .interactive-chart {
+            height: 500px;
+        }
+
+        .analysis-table th {
+            background-color: var(--primary);
+            color: white;
+        }
+
+        .print-section {
+            page-break-inside: avoid;
+        }
+
         @media print {
             .no-print { display: none !important; }
+            .metric-card { box-shadow: none; }
         }
     </style>
 </head>
 <body>
     <div class="container-lg py-4">
         <!-- 报告头 -->
-        <div class="report-header mb-4 text-center">
+        <div class="report-header mb-4 text-center print-section">
             <h1 class="mb-3">❤️ 心脏健康分析报告</h1>
             <div class="row g-4">
-                <!-- 健康评分 -->
-                <div class="col-md-3">
-                    <div class="metric-card p-3">
-                        <div class="text-muted">综合评分</div>
-                        <div class="h1 text-primary">{{ "%.1f"|format(analysis['健康评分']) }}</div>
-                        <small class="text-muted">(满分100)</small>
+                <div class="col-md-4">
+                    <div class="metric-card">
+                        <div class="text-muted">健康评分</div>
+                        <div class="display-4 text-primary">{{ "%.0f"|format(analysis['健康评分']) }}</div>
+                        <div class="small">(满分100)</div>
                     </div>
                 </div>
                 
-                <!-- 核心指标 -->
-                <div class="col-md-9">
-                    <div class="metric-card p-3">
-                        <div class="row text-center g-3">
-                            <div class="col">
-                                <div class="h5 text-primary">{{ "%.1f"|format(analysis['心率平均值']) }}</div>
+                <div class="col-md-8">
+                    <div class="metric-card">
+                        <div class="row g-3 text-center">
+                            <div class="col-6 col-md-3">
+                                <div class="h4 text-primary">{{ "%.1f"|format(analysis['平均心率']) }}</div>
                                 <small class="text-muted">平均心率</small>
                             </div>
-                            <div class="col border-start">
-                                <div class="h5 text-info">{{ analysis['异常数量'] }}</div>
-                                <small class="text-muted">异常事件</small>
+                            <div class="col-6 col-md-3">
+                                <div class="h4 text-info">{{ analysis['血氧异常次数'] }}</div>
+                                <small class="text-muted">低血氧事件</small>
                             </div>
-                            <div class="col border-start">
-                                <div class="h5 text-success">{{ "%.1f"|format(analysis['SDNN']) }}</div>
+                            <div class="col-6 col-md-3">
+                                <div class="h4 text-success">{{ "%.1f"|format(analysis['SDNN']) }}ms</div>
                                 <small class="text-muted">SDNN</small>
                             </div>
-                            <div class="col border-start">
-                                <div class="h5 text-warning">{{ "%.2f"|format(analysis['LF/HF']) }}</div>
+                            <div class="col-6 col-md-3">
+                                <div class="h4 text-warning">{{ "%.2f"|format(analysis['LF/HF']) }}</div>
                                 <small class="text-muted">LF/HF</small>
                             </div>
                         </div>
@@ -98,68 +120,143 @@
             </div>
         </div>
 
-        <!-- 风险提示 -->
-        <div class="alert-section p-3 mb-4">
-            <h4>📢 重要提示</h4>
-            <ul class="mb-0">
-                {% if analysis['SDNN'] < 50 %}
-                <li>心率变异性较低（SDNN = {{ "%.1f"|format(analysis['SDNN']) }}ms）</li>
-                {% endif %}
-                {% if analysis['LF/HF'] > 3 %}
-                <li>压力水平偏高（LF/HF = {{ "%.2f"|format(analysis['LF/HF']) }}）</li>
-                {% endif %}
-            </ul>
-        </div>
-
-        <!-- 图表区 -->
-        <div class="row g-4 mb-4">
-            <div class="col-md-8">
+        <!-- 核心可视化 -->
+        <div class="row print-section">
+            <div class="col-12">
                 <div class="chart-container">
-                    {{ trend_chart|safe }}
-                </div>
-            </div>
-            
-            <div class="col-md-4">
-                <div class="chart-container">
-                    {{ distribution_chart|safe }}
+                    <h4>📈 心率趋势分析</h4>
+                    <div class="interactive-chart">
+                        {{ trend_chart|safe }}
+                    </div>
                 </div>
             </div>
             
             <div class="col-12">
                 <div class="chart-container">
-                    {{ extended_trend_chart|safe }}
+                    <h4>🩸 血氧饱和度监测</h4>
+                    <div class="interactive-chart">
+                        {{ blood_oxygen_chart|safe }}
+                    </div>
+                </div>
+            </div>
+            
+            
+        </div>
+
+        <!-- 详细分析 -->
+        <div class="row print-section">
+            <div class="col-md-6">
+                <div class="metric-card">
+                    <h4 class="mb-3">📊 核心指标分析</h4>
+                    <table class="table analysis-table">
+                        <tbody>
+                            <tr>
+                                <th scope="row">心率平稳性</th>
+                                <td>{{ "%.1f"|format(analysis['心率平稳性']) }} bpm</td>
+                                <td>{{ '⚠️ 波动异常' if analysis['心率平稳性'] > 8 else '✅ 正常' }}</td>
+                            </tr>
+                            <tr>
+                                <th scope="row">心血管风险概率</th>
+                                <td>{{ analysis['心血管风险概率']*100 }} %</td>
+                                <td>{{ '⚠️ 风险较高，建议就医' if analysis['心血管风险概率'] > 0.25 else '✅ 正常' }}</td>
+                            </tr>
+                            <!-- <tr>
+                                <th scope="row">心血管风险概率</th>
+                                <td colspan="2">
+                                    <div class="progress">
+                                        <div class="progress-bar bg-danger" 
+                                             style="width: {{ analysis['心血管风险概率']*100 }}%">
+                                            {{ "%.1f"|format(analysis['心血管风险概率']*100) }}%
+                                        </div>
+                                    </div>
+                                </td>
+                            </tr> -->
+                            <tr>
+                                <th scope="row">血氧-心率关联度</th>
+                                <td colspan="2">R² = {{ analysis['血氧-心率关联度'] }}</td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+
+            <div class="col-md-6">
+                <div class="metric-card">
+                    <h4 class="mb-3">🔮 趋势预测</h4>
+                    <div class="risk-indicator bg-info text-white">
+                        预测心率：{{ "%.0f"|format(risk_prediction['心率']) }} ± {{ "%.1f"|format(risk_prediction['波动']) }} bpm
+                    </div>
+                    <div class="risk-indicator bg-success text-white">
+                        血氧稳定概率：{{ "%.0f"|format(risk_prediction['血氧稳定']*100) }}%
+                    </div>
+                    <div class="mt-3">
+                        <h5>异常事件统计</h5>
+                        <ul class="list-group">
+                            {% for anomaly in anomalies[:5] %}
+                            <li class="list-group-item list-group-item-warning">{{ anomaly }}</li>
+                            {% endfor %}
+                        </ul>
+                    </div>
                 </div>
             </div>
         </div>
 
-        <!-- 数据分析 -->
-        <div class="row g-4">
-            <div class="col-md-6">
-                <div class="metric-card p-3">
-                    <h5>📊 数据统计</h5>
-                    {{ stats|safe }}
+        <!-- 专业指标 -->
+        <div class="metric-card print-section">
+            <h4 class="mb-3">🩺 专业医疗指标</h4>
+            <div class="row">
+                <div class="col-md-4">
+                    <div class="alert alert-secondary">
+                        <h5>SDNN指标</h5>
+                        <p class="mb-0">{{ analysis['SDNN'] }} ms 
+                            <span class="badge bg-{{ 'danger' if analysis['SDNN'] <50 else 'success' }}">
+                                {{ '异常' if analysis['SDNN'] <50 else '正常' }}
+                            </span>
+                        </p>
+                    </div>
+                </div>
+                <div class="col-md-4">
+                    <div class="alert alert-secondary">
+                        <h5>LF/HF平衡</h5>
+                        <p class="mb-0">{{ "%.2f"|format(analysis['LF/HF']) }}
+                            <span class="badge bg-{{ 'danger' if analysis['LF/HF'] >3 else 'success' }}">
+                                {{ '压力状态' if analysis['LF/HF'] >3 else '平衡状态' }}
+                            </span>
+                        </p>
+                    </div>
+                </div>
+                <div class="col-md-4">
+                    <div class="alert alert-secondary">
+                        <h5>最低血氧</h5>
+                        <p class="mb-0">{{ analysis['最低血氧'] }}%
+                            <span class="badge bg-{{ 'danger' if analysis['最低血氧'] <92 else 'success' }}">
+                                {{ '需关注' if analysis['最低血氧'] <92 else '正常' }}
+                            </span>
+                        </p>
+                    </div>
                 </div>
             </div>
-            
-            <div class="col-md-6">
-                <div class="metric-card p-3">
-                    <h5>💡 健康建议</h5>
-                    <div class="advice-content">{{ ai_advice }}</div>
-                </div>
+        </div>
+
+        <!-- AI建议 -->
+        <div class="metric-card print-section">
+            <h4 class="mb-3">💡 AI健康建议</h4>
+            <div class="alert alert-success">
+                {{ ai_advice|replace('\n', '<br>')|safe }}
             </div>
         </div>
 
         <!-- 页脚 -->
-        <div class="mt-4 text-center text-muted small">
+        <div class="mt-4 text-center text-muted small print-section">
             <hr>
             <p>生成时间：{{ now }}</p>
-            <p class="mb-0">本报告基于数据分析，仅供参考</p>
+            <p class="mb-0">本报告基于数据分析，建议结合临床诊断使用</p>
         </div>
     </div>
 
     <!-- 操作按钮 -->
     <div class="no-print position-fixed bottom-0 end-0 m-3">
-        <button class="btn btn-primary" onclick="window.print()">
+        <button class="btn btn-primary btn-lg shadow" onclick="window.print()">
             🖨️ 打印报告
         </button>
     </div>

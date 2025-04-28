@@ -43,19 +43,23 @@ rcParams["axes.unicode_minus"] = False  # 负号显示
 def load_health_data(file_path):
     """文件读取进度显示"""
     try:
-        # 显示文件大小
-        file_size = os.path.getsize(file_path)
-        print(f"正在读取文件（大小：{file_size/1024:.1f}KB）...")
+        # 检测文件是否有列头
+        df_sample = pd.read_csv(file_path, nrows=0, encoding='gbk')
+        has_header = list(df_sample.columns) == ["timestamp", "heart_rate", "blood_oxygen"]
+        
+        # 构建动态读取参数
+        read_params = {
+            "filepath_or_buffer": file_path,
+            "parse_dates": ["timestamp"],
+            "chunksize": 1000,
+            "encoding": "gbk",
+            "header": 0 if has_header else None
+        }
+        if not has_header:
+            read_params["names"] = ["timestamp", "heart_rate", "blood_oxygen"]
 
-        # 使用逐块读取优化大文件处理
-        chunks = pd.read_csv(
-            file_path,
-            parse_dates=["timestamp"],
-            chunksize=1000,
-            header=None,  # 告诉 pandas 文件没有列头
-            names=["timestamp", "heart_rate", "blood_oxygen"],  # 手动指定列头
-            encoding="gbk",  # 使用 gbk 编码读取文件，适配硬件传值
-        )
+        # 使用动态参数进行读取
+        chunks = pd.read_csv(**read_params)
         df = pd.concat(chunks)
 
         # 验证必要字段
@@ -295,7 +299,7 @@ def advanced_visualization(df, analysis):
         color="green",
         label="异常低心率",
     )
-    ax4.set_title("异常值检测结果")
+    ax4.set_title("心率异常值检测结果")
     ax4.legend()
     ax4.grid(True)
     ax4.set_xticks([])
@@ -519,10 +523,38 @@ def generate_report(df, analysis, advice, anomalies):
     )
     trend_html = pio.to_html(trend_fig, full_html=False)
 
-    distribution_fig = px.histogram(
-        df, x="heart_rate", nbins=30, title="心率分布直方图"
+    blood_oxygen_fig = px.line(
+        df, 
+        x="timestamp", 
+        y="blood_oxygen",
+        color=df["blood_oxygen"].apply(lambda x: "异常" if x < 92 else "正常"),
+        title="血氧饱和度监测"
     )
-    distribution_html = pio.to_html(distribution_fig, full_html=False)
+    blood_oxygen_html = pio.to_html(blood_oxygen_fig, full_html=False)
+
+    # distribution_fig = px.histogram(
+    #     df, x="heart_rate", nbins=30, title="心率分布直方图"
+    # )
+    # distribution_html = pio.to_html(distribution_fig, full_html=False)
+
+    # 新增血氧趋势图
+    # blood_oxygen_fig = px.scatter(
+    #     df, 
+    #     x="timestamp", 
+    #     y="blood_oxygen",
+    #     color=df["blood_oxygen"].apply(lambda x: "异常" if x < 92 else "正常"),
+    #     title="血氧饱和度监测"
+    # )
+    # blood_oxygen_html = pio.to_html(blood_oxygen_fig, full_html=False)
+
+    # # 新增HRV指标图
+    # hrv_fig = px.line(
+    #     df,
+    #     x="timestamp",
+    #     y=["SDNN", "RMSSD"],
+    #     title="心率变异性趋势"
+    # )
+    # hrv_html = pio.to_html(hrv_fig, full_html=False)
 
     # 创建报告目录
     report_dir = "reports"
@@ -551,7 +583,9 @@ def generate_report(df, analysis, advice, anomalies):
         anomalies=anomalies,
         now=datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
         trend_chart=trend_html,
-        distribution_chart=distribution_html,
+        # distribution_chart=distribution_html,
+        blood_oxygen_chart=blood_oxygen_html,
+        risk_prediction=analysis.get('趋势预测', {}),
     )
 
     with open(filepath, "w", encoding="utf-8") as f:
@@ -690,7 +724,7 @@ class HeartAnalysisApp:
         analysis_str = "🏥 核心健康指标 🏥\n"
         analysis_str += f"• 健康评分: {analysis.get('健康评分', 0):.0f}/100\n"
         analysis_str += (
-            f"• 综合风险指数: {analysis.get('心血管风险概率', 0)*100:.1f}%\n"
+            f"• 综合心血管风险指数: {analysis.get('心血管风险概率', 0)*100:.1f}%\n"
         )
         analysis_str += "━━━━━━━━━━━━━━━━━━━━\n"
 
@@ -1471,13 +1505,12 @@ class HeartAnalysisApp:
         except Exception as e:
             messagebox.showinfo("已发送", "已发送")
 
-    #         messagebox.showerror("错误", f"发送失败：{str(e)}")
 
-    # def show_error(self, message):
-    #     error_window = tk.Toplevel(self.root)
-    #     error_window.title("提示")
-    #     ttk.Label(error_window, text=message, foreground="red").pack(padx=20, pady=10)
-    #     ttk.Button(error_window, text="确定", command=error_window.destroy).pack(pady=5)
+    def show_error(self, message):
+        error_window = tk.Toplevel(self.root)
+        error_window.title("提示")
+        ttk.Label(error_window, text=message, foreground="red").pack(padx=20, pady=10)
+        ttk.Button(error_window, text="确定", command=error_window.destroy).pack(pady=5)
 
 
 if __name__ == "__main__":
