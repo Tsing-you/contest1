@@ -438,13 +438,21 @@ def comprehensive_analysis(df, anomalies):
     analysis["健康评分"] = max(60, base_score - score_deduction)
 
     # 时序预测
-    model = ARIMA(df['heart_rate'], order=(1,1,1))
+    model = ARIMA(df["heart_rate"], order=(1, 1, 1))
     results = model.fit()
     forecast = results.get_forecast(steps=5)
     analysis["趋势预测"] = {
         "心率": forecast.predicted_mean.iloc[0],
         "波动": forecast.se_mean.iloc[0],
-        "血氧稳定": round(1 - min(df['blood_oxygen'].rolling(10).std().fillna(3).iloc[-1]/3 + len(anomalies)*0.02, 0.3), 2)
+        "血氧稳定": round(
+            1
+            - min(
+                df["blood_oxygen"].rolling(10).std().fillna(3).iloc[-1] / 3
+                + len(anomalies) * 0.02,
+                0.3,
+            ),
+            2,
+        ),
     }
 
     return analysis
@@ -819,76 +827,91 @@ class HeartAnalysisApp:
         self.fig_canvas.get_tk_widget().pack(fill=tk.BOTH, expand=True)
 
     def build_page3(self, parent):
-        """构建第三页（自适应布局）"""
-        # 主容器使用Grid布局
-        main_frame = ttk.Frame(parent)#main_frame = tk.Frame(parent, bg="lightblue")  # 直接设置背景颜色
-        main_frame.pack(fill=tk.BOTH, expand=True, padx=0, pady=0)
+        """构建第三页（优化版）"""
+        main_frame = ttk.Frame(parent)
+        main_frame.pack(fill=tk.BOTH, expand=True)
 
-        #配置行列权重
-        main_frame.columnconfigure(0, weight=1)
-        main_frame.rowconfigure(0, weight=1)
+        # 聊天展示区域
+        chat_container = ttk.Frame(main_frame)
+        chat_container.pack(fill=tk.BOTH, expand=True, padx=5, pady=5)
 
-        # 创建Canvas和滚动条
-        # self.chat_canvas = tk.Canvas(main_frame, highlightthickness=0)  # 修改此处
-        # self.chat_canvas.pack(fill=tk.BOTH, expand=True)
-        # canvas = tk.Canvas(main_frame, highlightthickness=0)
-        # canvas.pack(fill=tk.BOTH, expand=True)
-        # scrollbar = ttk.Scrollbar(main_frame, orient="vertical", command=canvas.yview)
-        # self.chat_frame = ttk.Frame(canvas)
-        # self.chat_frame.pack(fill=tk.BOTH, expand=True, padx=0, pady=0)
-        canvas = tk.Canvas(main_frame, highlightthickness=0)
-        scrollbar = ttk.Scrollbar(main_frame, orient="vertical", command=canvas.yview)
-        self.chat_frame = ttk.Frame(canvas)
+        # 创建滚动区域
+        self.scroll_frame = ttk.Frame(chat_container)
+        self.scroll_frame.pack(fill=tk.BOTH, expand=True)
 
-        # 滚动区域配置
-        self.chat_frame.bind(
-            "<Configure>", lambda e: canvas.configure(scrollregion=canvas.bbox("all"))
+        # 创建滚动条
+        self.scrollbar = ttk.Scrollbar(self.scroll_frame, orient="vertical")
+        self.scrollbar.pack(side=tk.RIGHT, fill=tk.Y)
+
+        # 创建Canvas
+        self.chat_canvas = tk.Canvas(
+            self.scroll_frame,
+            bg="white",
+            highlightthickness=0,
+            yscrollcommand=self.scrollbar.set,
+        )
+        self.chat_canvas.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
+        self.scrollbar.config(command=self.chat_canvas.yview)
+
+        # 创建内部Frame
+        self.chat_frame = ttk.Frame(self.chat_canvas)
+        self.chat_canvas.create_window(
+            (0, 0), window=self.chat_frame, anchor="nw", tags="inner_frame"
         )
 
-        canvas.create_window((0, 0), window=self.chat_frame, anchor="nw")
-        canvas.configure(yscrollcommand=scrollbar.set)
+        # 动态宽度配置
+        def _on_canvas_configure(event):
+            """动态调整内部Frame宽度"""
+            canvas_width = event.width
+            self.chat_canvas.itemconfig("inner_frame", width=canvas_width)
 
-        # 布局组件
-        canvas.grid(row=0, column=0, sticky="nsew")
-        scrollbar.grid(row=0, column=1, sticky="ns")
+            # 更新已有消息的换行长度
+            for widget in self.chat_frame.winfo_children():
+                if isinstance(widget, ttk.Frame):
+                    for child in widget.winfo_children():
+                        if isinstance(child, ttk.Label) and hasattr(
+                            child, "wraplength"
+                        ):
+                            child.configure(wraplength=canvas_width - 20)  # 保留边距
+
+        self.chat_canvas.bind("<Configure>", _on_canvas_configure)
+
+        # 智能滚动绑定
+        def _on_mousewheel(event):
+            if self.chat_canvas.winfo_height() > 0:
+                self.chat_canvas.yview_scroll(int(-1 * (event.delta / 120)), "units")
+
+        def _bind_mousewheel():
+            self.chat_canvas.bind_all("<MouseWheel>", _on_mousewheel)
+
+        def _unbind_mousewheel():
+            self.chat_canvas.unbind_all("<MouseWheel>")
+
+        self.chat_canvas.bind("<Enter>", lambda e: _bind_mousewheel())
+        self.chat_canvas.bind("<Leave>", lambda e: _unbind_mousewheel())
 
         # 输入区域
         input_frame = ttk.Frame(main_frame)
+        input_frame.pack(side=tk.BOTTOM, fill=tk.X, pady=5, padx=5)
+
         self.user_input = ttk.Entry(input_frame)
-        send_button = ttk.Button(input_frame, text="发送", command=self.send_message)
-
-        # 布局配置
-        input_frame.grid(row=1, column=0, columnspan=2, sticky="ew", pady=5)
         self.user_input.pack(side=tk.LEFT, fill=tk.X, expand=True, padx=5)
+
+        send_button = ttk.Button(input_frame, text="发送", command=self.send_message)
         send_button.pack(side=tk.RIGHT, padx=5)
+        self.user_input.bind("<Return>", lambda event: self.send_message())
 
-        # 绑定全局鼠标滚轮
-        canvas.bind(
-            "<Enter>",
-            lambda e: canvas.bind_all(
-                "<MouseWheel>", lambda event: self._on_mousewheel(event, canvas)
-            ),
-        )
-        canvas.bind("<Leave>", lambda e: canvas.unbind_all("<MouseWheel>"))
+    # def _on_canvas_configure(self, event):
+    #     """处理画布尺寸变化以自适应宽度"""
+    #     # 更新内部框架宽度
+    #     self.chat_canvas.itemconfigure("inner_frame", width=event.width)
 
-        # 自适应宽度处理
-        # self.chat_canvas.bind("<Configure>",
-        #     lambda e: self.chat_frame.config(width=e.width-20))
-
-        # 设置chat_frame的最小宽度
-        self.chat_frame.config(width=1850)  # 可以根据需要调整宽度
-
-    def _on_canvas_configure(self, event):
-        """处理画布尺寸变化以自适应宽度"""
-        # 更新内部框架宽度
-        self.chat_canvas.itemconfigure("inner_frame", width=event.width)
-
-        # 更新消息标签换行长度
-        for widget in self.chat_frame.winfo_children():
-            if isinstance(widget, ttk.Frame):
-                for child in widget.winfo_children():
-                    if isinstance(child, ttk.Label):
-                        child.config(wraplength=event.width - 20)  # 保留边距
+    #     # 更新消息标签换行长度
+    #     for widget in self.chat_frame.winfo_children():
+    #         if isinstance(widget, ttk.Frame):
+    #             for child in widget.winfo_children():
+    #                 if isinstance(child, ttk.Label):
+    #                     child.config(wraplength=event.width - 20)  # 保留边距
 
     def _on_mousewheel(self, event, canvas):
         """统一处理鼠标滚轮事件"""
@@ -915,6 +938,7 @@ class HeartAnalysisApp:
                 user_frame,
                 text=user_message,
                 wraplength=int(self.chat_frame.winfo_width() * 0.95),
+                background="blue"
             )
             user_label.pack(side=tk.LEFT, fill=tk.X, expand=True)
 
@@ -932,7 +956,7 @@ class HeartAnalysisApp:
             # 消息头部分
             header_frame = ttk.Frame(ai_frame)
             header_frame.pack(fill=tk.X)  # 填充横向
-            ttk.Label(header_frame, text="[AI] ", foreground="green").pack(side=tk.LEFT)
+            ttk.Label(header_frame, text="[AI] ", foreground="green",background="gray").pack(side=tk.LEFT)
 
             # 语音控制按钮
             speech_btn = ttk.Button(header_frame, text="▶", width=3)
@@ -958,7 +982,7 @@ class HeartAnalysisApp:
             # 时间标签
             send_time = datetime.now().strftime("%H:%M:%S")
             ttk.Label(
-                ai_frame, text=send_time, font=("微软雅黑", 12), foreground="gray"
+                ai_frame, text=send_time, font=("微软雅黑", 12), 
             ).pack(anchor="e")
 
             # 保持滚动到底部
@@ -1127,7 +1151,7 @@ class HeartAnalysisApp:
 
                     # 显示初始AI建议
                     ai_frame = ttk.Frame(self.chat_frame)
-                    ai_frame.pack(anchor="w", pady=5, padx=5, fill=tk.X, expand=True)
+                    ai_frame.pack(fill=tk.X, expand=True)
 
                     # ttk.Label(ai_frame, text="[AI] ", foreground="green").pack(
                     #     side=tk.LEFT
@@ -1162,10 +1186,13 @@ class HeartAnalysisApp:
                     ttk.Label(
                         ai_frame,
                         text=self.ai_advice,
-                        wraplength=int(self.chat_frame.winfo_width()),#1800,  # int(self.chat_frame.winfo_width()),
+                        wraplength=self.chat_canvas.winfo_width()
+                        - 20,  # 1800,  # int(self.chat_frame.winfo_width()),
                         font=("微软雅黑", 16),  # 修改字号为16，字体为微软雅黑
                         foreground="green",  # 修改文字颜色为蓝色
                         # background="#f0f8ff",
+                        anchor="w",
+                        justify="left",
                     ).pack(side=tk.LEFT)
                 ai_frame.pack(anchor="w", pady=5)
 
